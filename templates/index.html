@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>JobPilot — ATS Resume Optimizer</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand-icon">🚀</div>
+  <span class="brand-name">JobPilot</span>
+  <span class="brand-tag">ATS Optimizer</span>
+  <div class="topbar-right">
+    <div class="status-dot" id="status-dot"></div>
+    <span class="status-label" id="status-label">Checking Ollama...</span>
+    <span class="status-model" id="status-model"></span>
+  </div>
+</div>
+
+<!-- Ollama not running banner -->
+<div class="setup-banner" id="setup-banner" style="display:none;">
+  <div class="setup-inner">
+    <span class="setup-icon">⚠️</span>
+    <div class="setup-text">
+      <strong>Ollama is not running.</strong>
+      Open a terminal and run: <code>ollama serve</code> — then refresh this page.
+      &nbsp;|&nbsp; Don't have Ollama? <a href="https://ollama.com/download" target="_blank">Download it free →</a>
+    </div>
+    <button class="setup-retry" onclick="checkHealth()">Retry</button>
+  </div>
+</div>
+
+<div class="page">
+
+  <div class="steps">
+    <div class="step"><div class="step-num active" id="s1">1</div><span class="step-label active">Your resume</span></div>
+    <div class="step-divider"></div>
+    <div class="step"><div class="step-num idle" id="s2">2</div><span class="step-label">Job description</span></div>
+    <div class="step-divider"></div>
+    <div class="step"><div class="step-num idle" id="s3">3</div><span class="step-label">Optimized resume</span></div>
+  </div>
+
+  <div id="input-section">
+    <div class="role-row">
+      <input type="text" id="target-role" placeholder="Target role (e.g. Senior Data Engineer)" />
+      <select id="experience">
+        <option value="entry">Entry level (0–2 yrs)</option>
+        <option value="mid" selected>Mid level (3–5 yrs)</option>
+        <option value="senior">Senior (6–10 yrs)</option>
+        <option value="staff">Staff / Principal (10+ yrs)</option>
+      </select>
+    </div>
+
+    <div class="input-grid">
+      <div class="card">
+        <div class="card-header">
+          <div class="card-icon" style="background:#EEEDFE;">📄</div>
+          <span class="card-title">Your current resume</span>
+          <span class="card-sub" id="resume-chars">0 chars</span>
+        </div>
+        <div class="upload-zone" id="upload-zone"
+          ondragover="handleDragOver(event)"
+          ondragleave="handleDragLeave()"
+          ondrop="handleDrop(event)"
+          onclick="document.getElementById('file-input').click()">
+          <input type="file" id="file-input" accept=".pdf,.doc,.docx,.txt" onchange="handleFileSelect(event)" />
+          <div class="upload-icon">📎</div>
+          <div class="upload-text" id="upload-text"><strong>Click to upload</strong> or drag &amp; drop</div>
+          <div class="upload-hint" id="upload-hint">PDF, DOCX, or TXT supported</div>
+        </div>
+        <div class="or-divider"><span>or paste manually</span></div>
+        <textarea id="resume-input" rows="14" placeholder="Paste your full resume text here..."></textarea>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <div class="card-icon" style="background:#E1F5EE;">💼</div>
+          <span class="card-title">Job description</span>
+          <span class="card-sub" id="jd-chars">0 chars</span>
+        </div>
+        <textarea id="jd-input" rows="20" placeholder="Paste the full job description here...
+
+Example:
+Senior Data Engineer — TechCorp
+
+We're looking for a Senior Data Engineer with:
+- Apache Airflow (DAG authoring)
+- Snowflake or Redshift
+- PySpark and Kafka
+- AWS (Glue, S3, Lambda)
+- dbt for data modeling"></textarea>
+      </div>
+    </div>
+
+    <div class="run-wrap">
+      <button class="run-btn" id="run-btn" onclick="optimize()" disabled>
+        ✨ Optimize My Resume
+      </button>
+      <p class="run-sub">100% free · runs locally on your machine · no data sent anywhere</p>
+    </div>
+    <div class="error-box" id="error-box" style="display:none;"></div>
+  </div>
+
+  <div class="loading" id="loading">
+    <div class="spinner"></div>
+    <p style="font-size:15px;font-weight:600;color:#1a1a1a;margin-bottom:16px;">Optimizing your resume...</p>
+    <p style="font-size:13px;color:#888;margin-bottom:20px;">This may take 30–60 seconds on first run</p>
+    <div class="loading-steps">
+      <p class="lstep" id="ls1">📋 Reading your resume and job description</p>
+      <p class="lstep" id="ls2">🔍 Identifying missing ATS keywords</p>
+      <p class="lstep" id="ls3">✍️ Rewriting and tailoring experience bullets</p>
+      <p class="lstep" id="ls4">📊 Scoring ATS compatibility</p>
+      <p class="lstep" id="ls5">✅ Finalizing optimized resume</p>
+    </div>
+  </div>
+
+  <div class="results" id="results"></div>
+
+</div>
+
+<script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>
