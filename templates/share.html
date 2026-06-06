@@ -1,1 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{ result.target_role }} — ATS Score {{ result.ats_score_after }}/100 · JobPilot</title>
+<meta property="og:title" content="My resume went from {{ result.ats_score_before }} → {{ result.ats_score_after }}/100 on ATS" />
+<meta property="og:description" content="Optimized for {{ result.job_title }} using JobPilot — free AI resume optimizer" />
+<meta name="twitter:card" content="summary" />
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #F5F5F3; color: #1a1a1a; min-height: 100vh; }
+  .topbar { background: #fff; border-bottom: 1px solid #E8E8E5; padding: 0 2rem; height: 56px; display: flex; align-items: center; justify-content: space-between; }
+  .brand { display: flex; align-items: center; gap: 10px; text-decoration: none; }
+  .brand-icon { width: 30px; height: 30px; background: #EEEDFE; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 16px; }
+  .brand-name { font-size: 16px; font-weight: 700; color: #1a1a1a; }
+  .try-btn { padding: 7px 18px; background: #3C3489; color: #fff; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; text-decoration: none; }
+  .try-btn:hover { opacity: 0.88; }
+  .hero { background: linear-gradient(160deg, #EEEDFE 0%, #F5F5F3 50%, #E1F5EE 100%); border-bottom: 1px solid #E8E8E5; padding: 3rem 2rem; text-align: center; }
+  .hero-label { font-size: 12px; font-weight: 600; color: #534AB7; background: #fff; border: 1px solid #C8C5F0; border-radius: 20px; padding: 4px 14px; display: inline-block; margin-bottom: 1.25rem; }
+  .hero-title { font-size: clamp(1.6rem, 4vw, 2.5rem); font-weight: 800; letter-spacing: -1px; margin-bottom: 0.5rem; }
+  .hero-sub { font-size: 15px; color: #666; }
+  .page { max-width: 780px; margin: 0 auto; padding: 2.5rem 1.5rem; }
+  .score-row { display: grid; grid-template-columns: 1fr auto 1fr; gap: 1rem; align-items: center; margin-bottom: 2rem; }
+  .score-box { background: #fff; border: 1px solid #E8E8E5; border-radius: 14px; padding: 1.5rem; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
+  .score-num { font-size: 52px; font-weight: 800; line-height: 1; }
+  .score-lbl { font-size: 13px; color: #888; margin-top: 6px; }
+  .arrow-box { text-align: center; }
+  .arrow { font-size: 28px; color: #C8C5F0; }
+  .delta { font-size: 13px; font-weight: 700; color: #27500A; background: #EAF3DE; padding: 4px 12px; border-radius: 20px; margin-top: 6px; display: inline-block; }
+  .section { background: #fff; border: 1px solid #E8E8E5; border-radius: 14px; padding: 1.25rem; margin-bottom: 1.25rem; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
+  .section-title { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: #888; margin-bottom: 12px; }
+  .kw-row { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+  .kw { font-size: 12px; padding: 4px 11px; border-radius: 20px; font-weight: 500; }
+  .kw-added   { background: #EAF3DE; color: #27500A; }
+  .kw-present { background: #E6F1FB; color: #0C447C; }
+  .kw-missing { background: #FCEBEB; color: #791F1F; }
+  .kw-group-label { font-size: 11px; color: #aaa; margin-bottom: 5px; margin-top: 4px; }
+  .change-item { display: flex; gap: 10px; padding: 10px 0; border-bottom: 1px solid #F5F5F3; }
+  .change-item:last-child { border-bottom: none; }
+  .change-icon { width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 15px; flex-shrink: 0; }
+  .change-title { font-size: 13px; font-weight: 600; margin-bottom: 2px; }
+  .change-detail { font-size: 12px; color: #666; line-height: 1.5; }
+  .cta-section { background: linear-gradient(135deg, #EEEDFE, #E1F5EE); border: 1px solid #C8C5F0; border-radius: 16px; padding: 2rem; text-align: center; margin-bottom: 2rem; }
+  .cta-title { font-size: 20px; font-weight: 800; margin-bottom: 8px; letter-spacing: -0.3px; }
+  .cta-sub { font-size: 14px; color: #555; margin-bottom: 1.25rem; }
+  .cta-link { display: inline-block; padding: 12px 32px; background: #3C3489; color: #fff; border-radius: 12px; font-size: 15px; font-weight: 700; text-decoration: none; box-shadow: 0 4px 16px rgba(83,74,183,0.3); }
+  .cta-link:hover { opacity: 0.88; }
+  .cta-note { font-size: 12px; color: #888; margin-top: 10px; }
+  .share-row { display: flex; gap: 10px; justify-content: center; margin-top: 1rem; flex-wrap: wrap; }
+  .share-btn { padding: 8px 18px; font-size: 13px; border: 1px solid #ddd; border-radius: 8px; background: #fff; cursor: pointer; font-weight: 500; color: #444; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
+  .share-btn:hover { background: #F5F5F3; }
+  .footer { text-align: center; font-size: 12px; color: #aaa; padding: 1rem 0 3rem; }
+</style>
+</head>
+<body>
 
+<nav class="topbar">
+  <a href="/" class="brand">
+    <div class="brand-icon">🚀</div>
+    <span class="brand-name">JobPilot</span>
+  </a>
+  <a href="/" class="try-btn">Optimize my resume →</a>
+</nav>
+
+<div class="hero">
+  <div class="hero-label">✦ ATS Optimization Result</div>
+  <h1 class="hero-title">{{ result.target_role or result.job_title }}</h1>
+  <p class="hero-sub">Resume optimized with JobPilot · Free AI resume optimizer</p>
+</div>
+
+<div class="page">
+
+  <div class="score-row">
+    <div class="score-box">
+      <div class="score-num" style="color:#ccc;">{{ result.ats_score_before }}</div>
+      <div class="score-lbl">ATS score before</div>
+    </div>
+    <div class="arrow-box">
+      <div class="arrow">→</div>
+      <div class="delta">+{{ result.ats_score_after - result.ats_score_before }} pts</div>
+    </div>
+    <div class="score-box">
+      {% set score = result.ats_score_after %}
+      {% set color = '#27500A' if score >= 80 else '#BA7517' if score >= 60 else '#A32D2D' %}
+      <div class="score-num" style="color:{{ color }};">{{ score }}</div>
+      <div class="score-lbl">ATS score after</div>
+    </div>
+  </div>
+
+  {% set added = result.keywords_added | tojson | tojson %}
+  <div class="section">
+    <div class="section-title">Keyword analysis</div>
+    {% set kw_added = result.keywords_added %}
+    {% set kw_present = result.keywords_present %}
+    {% set kw_missing = result.keywords_missing %}
+    {% if kw_added %}
+      <div class="kw-group-label">Added to resume</div>
+      <div class="kw-row">
+        {% for k in kw_added %}<span class="kw kw-added">+ {{ k }}</span>{% endfor %}
+      </div>
+    {% endif %}
+    {% if kw_present %}
+      <div class="kw-group-label">Already present</div>
+      <div class="kw-row">
+        {% for k in kw_present %}<span class="kw kw-present">✓ {{ k }}</span>{% endfor %}
+      </div>
+    {% endif %}
+    {% if kw_missing %}
+      <div class="kw-group-label">Could not fit naturally</div>
+      <div class="kw-row">
+        {% for k in kw_missing %}<span class="kw kw-missing">✗ {{ k }}</span>{% endfor %}
+      </div>
+    {% endif %}
+  </div>
+
+  {% set changes = result.changes %}
+  {% if changes %}
+  <div class="section">
+    <div class="section-title">What was changed</div>
+    {% set icons = {'keyword': '🔑', 'bullet': '✍️', 'structure': '📐', 'tone': '🎯'} %}
+    {% set bgs = {'keyword': '#EEEDFE', 'bullet': '#E1F5EE', 'structure': '#E6F1FB', 'tone': '#FAEEDA'} %}
+    {% for c in changes %}
+    <div class="change-item">
+      <div class="change-icon" style="background:{{ bgs.get(c.type, '#F1EFE8') }};">{{ icons.get(c.type, '✅') }}</div>
+      <div>
+        <div class="change-title">{{ c.title }}</div>
+        <div class="change-detail">{{ c.detail }}</div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <div class="cta-section">
+    <div class="cta-title">Optimize your resume for free</div>
+    <div class="cta-sub">Paste your resume + any job description. Get an ATS-optimized version in 30 seconds.</div>
+    <a href="/" class="cta-link">Try JobPilot free →</a>
+    <div class="cta-note">No sign up · No credit card · 100% free</div>
+  </div>
+
+  <div style="text-align:center;">
+    <p style="font-size:13px;color:#888;margin-bottom:12px;">Share this result</p>
+    <div class="share-row">
+      <a class="share-btn" href="https://www.linkedin.com/sharing/share-offsite/?url={{ request.url }}" target="_blank">
+        💼 Share on LinkedIn
+      </a>
+      <a class="share-btn" href="https://twitter.com/intent/tweet?text=My resume ATS score went from {{ result.ats_score_before }} to {{ result.ats_score_after }}/100 using @JobPilotAI (free!)&url={{ request.url }}" target="_blank">
+        🐦 Share on X
+      </a>
+      <button class="share-btn" onclick="navigator.clipboard.writeText(window.location.href).then(()=>this.textContent='✅ Copied!')">
+        🔗 Copy link
+      </button>
+    </div>
+  </div>
+
+  <div class="footer">
+    <p>Generated by <a href="/" style="color:#534AB7;">JobPilot</a> · Free AI resume optimizer · <a href="https://github.com/learnwithnikhil-bot/jobpilot" target="_blank" style="color:#534AB7;">GitHub</a></p>
+  </div>
+
+</div>
+</body>
+</html>
