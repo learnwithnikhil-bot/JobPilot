@@ -2,12 +2,21 @@ import os
 import json
 import re
 from flask import Flask, request, jsonify, render_template
-import ollama
+from groq import Groq
+from dotenv import load_dotenv
+
+load_dotenv()
 
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 10 * 1024 * 1024  # 10MB
 
-OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "gemma4:latest")
+GROQ_MODEL = "llama-3.3-70b-versatile"  # free, fast, high quality
+
+def get_client():
+    api_key = os.environ.get("GROQ_API_KEY", "")
+    if not api_key:
+        return None
+    return Groq(api_key=api_key)
 
 # ── File extraction ───────────────────────────────────────────────────
 
@@ -34,11 +43,9 @@ def index():
 def upload():
     if "file" not in request.files:
         return jsonify({"error": "No file uploaded"}), 400
-
     file = request.files["file"]
     name = file.filename.lower()
     data = file.read()
-
     try:
         if name.endswith(".pdf"):
             text = extract_pdf(data)
@@ -48,32 +55,31 @@ def upload():
             text = data.decode("utf-8", errors="ignore")
         else:
             return jsonify({"error": "Use PDF, DOCX, or TXT"}), 400
-
         if not text or len(text.strip()) < 20:
             return jsonify({"error": "Could not extract text — try pasting manually"}), 400
-
         return jsonify({"text": text.strip()})
     except Exception as e:
         return jsonify({"error": f"File read failed: {e}"}), 500
 
 @app.route("/health", methods=["GET"])
 def health():
-    """Check if Ollama is running and model is available."""
+    api_key = os.environ.get("GROQ_API_KEY", "")
+    if not api_key:
+        return jsonify({"status": "no_key"}), 200
     try:
-        models = ollama.list()
-        available = [m.model for m in models.models]
-        has_model = any(OLLAMA_MODEL in m for m in available)
-        return jsonify({
-            "ollama": "running",
-            "model": OLLAMA_MODEL,
-            "model_ready": has_model,
-            "available_models": available
-        })
+        client = Groq(api_key=api_key)
+        # lightweight check — just list models
+        client.models.list()
+        return jsonify({"status": "ready", "model": GROQ_MODEL})
     except Exception as e:
-        return jsonify({"ollama": "not running", "error": str(e)}), 503
+        return jsonify({"status": "error", "error": str(e)}), 503
 
 @app.route("/optimize", methods=["POST"])
 def optimize():
+    client = get_client()
+    if not client:
+        return jsonify({"error": "GROQ_API_KEY not set. Add it to your .env file."}), 503
+
     data       = request.get_json()
     resume     = (data.get("resume") or "").strip()
     jd         = (data.get("job_description") or "").strip()
@@ -86,41 +92,38 @@ def optimize():
         return jsonify({"error": "Job description too short or missing"}), 400
 
     exp_map = {
-        "entry":  "entry-level (0-2 years)",
-        "mid":    "mid-level (3-5 years)",
-        "senior": "senior (6-10 years)",
-        "staff":  "staff/principal (10+ years)",
+        "entry": "entry-level (0-2 years)", "mid": "mid-level (3-5 years)",
+        "senior": "senior (6-10 years)",    "staff": "staff/principal (10+ years)",
     }
-    exp_label = exp_map.get(experience, "mid-level")
 
-    prompt = f"""You are an expert ATS resume optimizer. Analyze the resume against the job description and return ONLY a valid JSON object. No markdown, no explanation, no extra text — just the raw JSON.
+    prompt = f"""You are an expert ATS resume optimizer. Analyze the resume against the job description and return ONLY a valid JSON object. No markdown fences, no explanation, just raw JSON.
 
 Return exactly this structure:
 {{
   "ats_score_before": 45,
   "ats_score_after": 82,
-  "job_title": "job title from JD",
+  "job_title": "extracted job title from JD",
   "keywords_added": ["keyword1", "keyword2", "keyword3"],
   "keywords_missing": ["missing1", "missing2"],
   "keywords_present": ["present1", "present2"],
   "optimized_resume": "full rewritten resume as plain text",
   "changes": [
-    {{"type": "keyword",   "title": "Added missing keywords",      "detail": "one sentence explaining what was added"}},
-    {{"type": "bullet",    "title": "Strengthened impact bullets",  "detail": "one sentence explaining rewrites"}},
-    {{"type": "structure", "title": "Reordered skills section",     "detail": "one sentence explaining restructure"}},
-    {{"type": "tone",      "title": "Adjusted seniority tone",      "detail": "one sentence explaining tone changes"}}
+    {{"type": "keyword",   "title": "Added missing keywords",     "detail": "one sentence"}},
+    {{"type": "bullet",    "title": "Strengthened impact bullets", "detail": "one sentence"}},
+    {{"type": "structure", "title": "Reordered skills section",    "detail": "one sentence"}},
+    {{"type": "tone",      "title": "Adjusted seniority tone",     "detail": "one sentence"}}
   ]
 }}
 
 Rules:
-- NEVER invent experience, education, or skills not in the original resume
-- Naturally weave missing JD keywords into existing bullets where truthful
-- Rewrite weak bullets with strong action verbs and quantified results where possible
-- Add a 2-3 sentence professional summary at the top targeting this role
-- Keep formatting ATS-friendly: no tables, no columns, plain text only
+- NEVER invent experience, education, or skills not in the original
+- Weave missing JD keywords into existing bullets where truthful
+- Rewrite weak bullets with strong action verbs and quantified results
+- Add a 2-3 sentence professional summary targeting this specific role
+- ATS-friendly formatting: no tables, no columns, plain text only
 - ats_score_before and ats_score_after are integers 0-100
 
-TARGET ROLE: {role} ({exp_label})
+TARGET ROLE: {role} ({exp_map.get(experience, 'mid-level')})
 
 CURRENT RESUME:
 {resume[:5000]}
@@ -128,38 +131,31 @@ CURRENT RESUME:
 JOB DESCRIPTION:
 {jd[:3000]}
 
-Return ONLY the JSON object:"""
+Return ONLY the JSON:"""
 
     try:
-        response = ollama.chat(
-            model=OLLAMA_MODEL,
+        response = client.chat.completions.create(
+            model=GROQ_MODEL,
             messages=[{"role": "user", "content": prompt}],
-            options={"temperature": 0.3, "num_predict": 3000}
+            temperature=0.3,
+            max_tokens=3000,
         )
-        raw = response["message"]["content"].strip()
-
-        # Extract JSON robustly
+        raw   = response.choices[0].message.content.strip()
         match = re.search(r'\{[\s\S]*\}', raw)
         if not match:
             return jsonify({"error": "Model returned unexpected output. Try again."}), 500
-
         result = json.loads(match.group(0))
         return jsonify(result)
 
-    except ollama.ResponseError as e:
-        if "not found" in str(e).lower():
-            return jsonify({
-                "error": f"Model '{OLLAMA_MODEL}' not found. Run: ollama pull {OLLAMA_MODEL}"
-            }), 503
-        return jsonify({"error": f"Ollama error: {e}"}), 500
-    except json.JSONDecodeError:
-        return jsonify({"error": "Could not parse model response. Try again."}), 500
     except Exception as e:
-        return jsonify({"error": f"Optimization failed: {e}"}), 500
+        err = str(e)
+        if "api_key" in err.lower() or "authentication" in err.lower():
+            return jsonify({"error": "Invalid Groq API key. Check your .env file."}), 401
+        if "rate_limit" in err.lower():
+            return jsonify({"error": "Rate limit hit. Wait a moment and try again."}), 429
+        return jsonify({"error": f"Optimization failed: {err}"}), 500
 
 if __name__ == "__main__":
-    print("\n🚀 JobPilot is running!")
-    print("   Open http://localhost:5000 in your browser\n")
-    print(f"   Using model: {OLLAMA_MODEL}")
-    print("   Make sure Ollama is running: ollama serve\n")
-    app.run(debug=True, port=5001)
+    port = int(os.environ.get("PORT", 5001))
+    print(f"\n🚀 JobPilot running at http://localhost:{port}\n")
+    app.run(host="0.0.0.0", port=port, debug=False)
