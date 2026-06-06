@@ -1,5 +1,5 @@
 let resumeInput, jdInput, runBtn;
-let ollamaReady = false;
+let aiReady = false;
 
 document.addEventListener('DOMContentLoaded', () => {
   resumeInput = document.getElementById('resume-input');
@@ -35,33 +35,31 @@ async function checkHealth() {
     const res  = await fetch('/health');
     const data = await res.json();
 
-    if (data.ollama === 'running' && data.model_ready) {
+    if (data.status === 'ready') {
       dot.className     = 'status-dot ok';
-      label.textContent = 'AI ready';
+      label.textContent = 'Groq AI ready';
       model.textContent = '· ' + data.model;
       banner.style.display = 'none';
-      ollamaReady = true;
+      aiReady = true;
       checkReady();
-    } else if (data.ollama === 'running' && !data.model_ready) {
+    } else if (data.status === 'no_key') {
       dot.className     = 'status-dot err';
-      label.textContent = 'Model missing';
+      label.textContent = 'API key missing';
       banner.style.display = 'block';
-      document.getElementById('setup-text').innerHTML =
-        `Ollama running but <code>${data.model}</code> not found. Run: <code>ollama pull ${data.model}</code>`;
-      ollamaReady = false;
+      aiReady = false;
     } else {
       throw new Error();
     }
   } catch {
     dot.className     = 'status-dot err';
-    label.textContent = 'Ollama offline';
+    label.textContent = 'Connection failed';
     banner.style.display = 'block';
-    ollamaReady = false;
+    aiReady = false;
   }
 }
 
 function checkReady() {
-  const ok = ollamaReady &&
+  const ok = aiReady &&
              resumeInput.value.trim().length > 50 &&
              jdInput.value.trim().length > 50;
   runBtn.disabled = !ok;
