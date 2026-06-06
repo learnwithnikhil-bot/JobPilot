@@ -1,12 +1,55 @@
 import os
 import json
 import re
+import uuid
+import psycopg2
+from psycopg2.extras import RealDictCursor
+from datetime import datetime
 from flask import Flask, request, jsonify, render_template
 
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 10 * 1024 * 1024
 
 GROQ_MODEL = "llama-3.3-70b-versatile"
+
+# ── Database ──────────────────────────────────────────────────────────
+
+def get_db():
+    db_url = os.environ.get("DATABASE_URL", "")
+    if not db_url:
+        return None
+    try:
+        conn = psycopg2.connect(db_url)
+        return conn
+    except Exception:
+        return None
+
+def init_db():
+    conn = get_db()
+    if not conn:
+        return
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS results (
+                    id VARCHAR(12) PRIMARY KEY,
+                    job_title TEXT,
+                    target_role TEXT,
+                    ats_score_before INT,
+                    ats_score_after INT,
+                    keywords_added TEXT,
+                    keywords_present TEXT,
+                    keywords_missing TEXT,
+                    optimized_resume TEXT,
+                    changes TEXT,
+                    created_at TIMESTAMP DEFAULT NOW()
+                )
+            """)
+        conn.commit()
+    except Exception as e:
+        print(f"DB init error: {e}")
+    finally:
+        conn.close()
 
 # ── File extraction ───────────────────────────────────────────────────
 
@@ -28,6 +71,23 @@ def extract_docx(file_bytes):
 @app.route("/")
 def index():
     return render_template("index.html")
+
+@app.route("/r/<share_id>")
+def shared_result(share_id):
+    conn = get_db()
+    if not conn:
+        return "Database not configured", 503
+    try:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute("SELECT * FROM results WHERE id = %s", (share_id,))
+            row = cur.fetchone()
+        if not row:
+            return render_template("404.html"), 404
+        return render_template("share.html", result=row)
+    except Exception as e:
+        return f"Error: {e}", 500
+    finally:
+        conn.close()
 
 @app.route("/upload", methods=["POST"])
 def upload():
@@ -57,6 +117,45 @@ def health():
     if not api_key:
         return jsonify({"status": "no_key"}), 200
     return jsonify({"status": "ready", "model": GROQ_MODEL})
+
+@app.route("/share", methods=["POST"])
+def save_share():
+    conn = get_db()
+    if not conn:
+        return jsonify({"error": "Database not available"}), 503
+
+    data = request.get_json()
+    share_id = uuid.uuid4().hex[:12]
+
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                INSERT INTO results
+                (id, job_title, target_role, ats_score_before, ats_score_after,
+                 keywords_added, keywords_present, keywords_missing,
+                 optimized_resume, changes)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+            """, (
+                share_id,
+                data.get("job_title", ""),
+                data.get("target_role", ""),
+                int(data.get("ats_score_before", 0)),
+                int(data.get("ats_score_after", 0)),
+                json.dumps(data.get("keywords_added", [])),
+                json.dumps(data.get("keywords_present", [])),
+                json.dumps(data.get("keywords_missing", [])),
+                data.get("optimized_resume", ""),
+                json.dumps(data.get("changes", []))
+            ))
+        conn.commit()
+        base_url = os.environ.get("RAILWAY_PUBLIC_DOMAIN", request.host)
+        scheme = "https" if "railway" in base_url else request.scheme
+        share_url = f"{scheme}://{base_url}/r/{share_id}"
+        return jsonify({"share_url": share_url, "share_id": share_id})
+    except Exception as e:
+        return jsonify({"error": f"Could not save: {e}"}), 500
+    finally:
+        conn.close()
 
 @app.route("/optimize", methods=["POST"])
 def optimize():
@@ -127,23 +226,20 @@ Return ONLY the JSON:"""
             max_tokens=3000,
         )
         raw = response.choices[0].message.content.strip()
-
-        # Strip markdown fences if present
         raw = re.sub(r'```json|```', '', raw).strip()
-
-        # Extract JSON object
         match = re.search(r'\{[\s\S]*\}', raw)
         if not match:
             return jsonify({"error": "Model returned unexpected output. Try again."}), 500
-
-        # Fix invalid control characters before parsing
         json_str = match.group(0)
         json_str = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f]', ' ', json_str)
-
         result = json.loads(json_str)
         return jsonify(result)
     except Exception as e:
         return jsonify({"error": f"Optimization failed: {str(e)}"}), 500
+
+# Init DB on startup
+with app.app_context():
+    init_db()
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8080))
