@@ -2,21 +2,11 @@ import os
 import json
 import re
 from flask import Flask, request, jsonify, render_template
-from groq import Groq
-from dotenv import load_dotenv
-
-load_dotenv()
 
 app = Flask(__name__)
-app.config['MAX_CONTENT_LENGTH'] = 10 * 1024 * 1024  # 10MB
+app.config['MAX_CONTENT_LENGTH'] = 10 * 1024 * 1024
 
-GROQ_MODEL = "llama-3.3-70b-versatile"  # free, fast, high quality
-
-def get_client():
-    api_key = os.environ.get("GROQ_API_KEY", "")
-    if not api_key:
-        return None
-    return Groq(api_key=api_key)
+GROQ_MODEL = "llama-3.3-70b-versatile"
 
 # ── File extraction ───────────────────────────────────────────────────
 
@@ -66,14 +56,14 @@ def health():
     api_key = os.environ.get("GROQ_API_KEY", "")
     if not api_key:
         return jsonify({"status": "no_key"}), 200
-    # Key exists — trust it and return ready
     return jsonify({"status": "ready", "model": GROQ_MODEL})
 
 @app.route("/optimize", methods=["POST"])
 def optimize():
-    client = get_client()
-    if not client:
-        return jsonify({"error": "GROQ_API_KEY not set. Add it to your .env file."}), 503
+    from groq import Groq
+    api_key = os.environ.get("GROQ_API_KEY", "")
+    if not api_key:
+        return jsonify({"error": "GROQ_API_KEY not set."}), 503
 
     data       = request.get_json()
     resume     = (data.get("resume") or "").strip()
@@ -88,7 +78,7 @@ def optimize():
 
     exp_map = {
         "entry": "entry-level (0-2 years)", "mid": "mid-level (3-5 years)",
-        "senior": "senior (6-10 years)",    "staff": "staff/principal (10+ years)",
+        "senior": "senior (6-10 years)", "staff": "staff/principal (10+ years)",
     }
 
     prompt = f"""You are an expert ATS resume optimizer. Analyze the resume against the job description and return ONLY a valid JSON object. No markdown fences, no explanation, just raw JSON.
@@ -129,6 +119,7 @@ JOB DESCRIPTION:
 Return ONLY the JSON:"""
 
     try:
+        client   = Groq(api_key=api_key)
         response = client.chat.completions.create(
             model=GROQ_MODEL,
             messages=[{"role": "user", "content": prompt}],
@@ -141,16 +132,10 @@ Return ONLY the JSON:"""
             return jsonify({"error": "Model returned unexpected output. Try again."}), 500
         result = json.loads(match.group(0))
         return jsonify(result)
-
     except Exception as e:
-        err = str(e)
-        if "api_key" in err.lower() or "authentication" in err.lower():
-            return jsonify({"error": "Invalid Groq API key. Check your .env file."}), 401
-        if "rate_limit" in err.lower():
-            return jsonify({"error": "Rate limit hit. Wait a moment and try again."}), 429
-        return jsonify({"error": f"Optimization failed: {err}"}), 500
+        return jsonify({"error": f"Optimization failed: {str(e)}"}), 500
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5001))
+    port = int(os.environ.get("PORT", 8080))
     print(f"\n🚀 JobPilot running at http://localhost:{port}\n")
     app.run(host="0.0.0.0", port=port, debug=False)
