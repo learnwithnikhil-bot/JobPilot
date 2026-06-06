@@ -302,6 +302,7 @@ function renderResults(r, role, originalResume) {
   `;
 
   window._optimizedResume = r.optimized_resume || '';
+  window._lastResult = r;
   document.getElementById('results').style.display = 'block';
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
