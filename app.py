@@ -126,11 +126,21 @@ Return ONLY the JSON:"""
             temperature=0.3,
             max_tokens=3000,
         )
-        raw   = response.choices[0].message.content.strip()
+        raw = response.choices[0].message.content.strip()
+
+        # Strip markdown fences if present
+        raw = re.sub(r'```json|```', '', raw).strip()
+
+        # Extract JSON object
         match = re.search(r'\{[\s\S]*\}', raw)
         if not match:
             return jsonify({"error": "Model returned unexpected output. Try again."}), 500
-        result = json.loads(match.group(0))
+
+        # Fix invalid control characters before parsing
+        json_str = match.group(0)
+        json_str = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f]', ' ', json_str)
+
+        result = json.loads(json_str)
         return jsonify(result)
     except Exception as e:
         return jsonify({"error": f"Optimization failed: {str(e)}"}), 500
