@@ -1,40 +1,42 @@
 # 🚀 JobPilot — Free ATS Resume Optimizer
 
-A 100% free, open-source AI resume optimizer that runs entirely on your machine.  
-**No API keys. No accounts. No data sent anywhere. Ever.**
+A free, open-source AI resume optimizer. Paste your resume + any job description and get an ATS-optimized version in seconds.
 
-Powered by [Ollama](https://ollama.com) (local AI) + Python Flask.
+🌐 **Live demo: https://jobpilot-production-df41.up.railway.app**
 
 ---
 
 ## ✨ Features
-- Upload resume (PDF, DOCX, TXT) or paste text
-- ATS score before & after (0–100)
-- Keyword gap analysis — added, present, missing
+- Upload resume — PDF, DOCX, or TXT (or paste text)
+- ATS score before & after (0–100) with visual ring indicators
+- Keyword gap analysis — added, present, and missing keywords
 - Side-by-side original vs optimized resume
-- One-click copy & download
-- 100% private — everything stays on your machine
+- Full breakdown of every change made and why
+- One-click copy & download of optimized resume
 
 ---
 
-## 🛠 Requirements
-- Python 3.9+
-- [Ollama](https://ollama.com/download) installed
+## 🛠 Tech Stack
+
+| Layer | Tech |
+|---|---|
+| Backend | Python 3.11, Flask |
+| AI | Groq API (free tier — Llama 3.3 70B) |
+| PDF parsing | PyMuPDF |
+| DOCX parsing | python-docx |
+| Frontend | HTML, CSS, Vanilla JS |
+| Hosting | Railway (free tier) |
 
 ---
 
-## 🚀 Setup (3 steps)
+## 🚀 Run locally
 
-### 1. Install Ollama + download the AI model
-```bash
-# Download Ollama from https://ollama.com/download
-# Then pull the free AI model (one time, ~4GB):
-ollama pull llama3
-```
+### 1. Get a free Groq API key
+Sign up at [console.groq.com](https://console.groq.com) — free, no credit card required.
 
 ### 2. Clone & install
 ```bash
-git clone https://github.com/YOUR_USERNAME/jobpilot.git
+git clone https://github.com/learnwithnikhil-bot/jobpilot.git
 cd jobpilot
 python3 -m venv venv
 source venv/bin/activate      # Mac/Linux
@@ -42,43 +44,28 @@ venv\Scripts\activate         # Windows
 pip install -r requirements.txt
 ```
 
-### 3. Run
+### 3. Add your API key
 ```bash
-# Terminal 1 — start Ollama
-ollama serve
-
-# Terminal 2 — start JobPilot
-python app.py
+cp .env.example .env
+# Open .env and add: GROQ_API_KEY=your_key_here
 ```
 
-Open **http://localhost:5000** in your browser. That's it.
+### 4. Run
+```bash
+python app.py
+# Open http://localhost:8080
+```
+
+---
+
+## ☁️ Deploy your own (free)
+
+1. Fork this repo
+2. Go to [railway.app](https://railway.app) → New Project → Deploy from GitHub
+3. Select this repo
+4. Add environment variable: `GROQ_API_KEY=your_key`
+5. Click deploy — you get a free public URL in ~2 minutes
 
 ---
 
 ## 📁 Project Structure
-```
-jobpilot/
-├── app.py                  # Flask backend
-├── requirements.txt
-├── templates/
-│   └── index.html
-└── static/
-    ├── css/style.css
-    └── js/app.js
-```
-
----
-
-## 🔄 Want to use a different model?
-```bash
-# Faster, smaller (recommended for older machines)
-ollama pull mistral
-
-# Then run with:
-OLLAMA_MODEL=mistral python app.py
-```
-
----
-
-## 📄 License
-MIT — free to use, modify, and distribute.
