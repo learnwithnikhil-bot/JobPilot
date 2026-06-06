@@ -66,13 +66,8 @@ def health():
     api_key = os.environ.get("GROQ_API_KEY", "")
     if not api_key:
         return jsonify({"status": "no_key"}), 200
-    try:
-        client = Groq(api_key=api_key)
-        # lightweight check — just list models
-        client.models.list()
-        return jsonify({"status": "ready", "model": GROQ_MODEL})
-    except Exception as e:
-        return jsonify({"status": "error", "error": str(e)}), 503
+    # Key exists — trust it and return ready
+    return jsonify({"status": "ready", "model": GROQ_MODEL})
 
 @app.route("/optimize", methods=["POST"])
 def optimize():
