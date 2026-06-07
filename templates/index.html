@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>JobPilot — ATS Resume Optimizer</title>
+<title>JobPilot — ATS Resume & LinkedIn Optimizer</title>
 <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
@@ -35,83 +35,80 @@
 </div>
 
 <main>
-
   <!-- Hero -->
   <section class="hero">
-    <div class="hero-badge">✦ 100% Free · Runs Locally · No Data Sent</div>
-    <h1 class="hero-title">Beat the ATS.<br>Get the Interview.</h1>
-    <p class="hero-sub">Paste your resume and any job description. JobPilot rewrites your resume with the exact keywords ATS systems look for — boosting your score instantly.</p>
+    <div class="hero-badge">✦ 100% Free · Powered by Groq AI · No Sign Up</div>
+    <h1 class="hero-title">Land More Interviews.<br>Faster.</h1>
+    <p class="hero-sub">Optimize your resume for ATS systems and supercharge your LinkedIn profile — all in one free tool.</p>
     <div class="hero-stats">
       <div class="hero-stat"><span class="stat-num">ATS</span><span class="stat-lbl">Score boost</span></div>
       <div class="hero-divider"></div>
-      <div class="hero-stat"><span class="stat-num">100%</span><span class="stat-lbl">Private & local</span></div>
+      <div class="hero-stat"><span class="stat-num">LinkedIn</span><span class="stat-lbl">Profile optimizer</span></div>
       <div class="hero-divider"></div>
       <div class="hero-stat"><span class="stat-num">Free</span><span class="stat-lbl">Forever</span></div>
     </div>
   </section>
 
-  <!-- Steps -->
   <div class="page">
-    <div class="steps-bar">
-      <div class="step-item">
-        <div class="step-circle active" id="s1">1</div>
-        <span class="step-lbl active" id="sl1">Your resume</span>
-      </div>
-      <div class="step-line"></div>
-      <div class="step-item">
-        <div class="step-circle idle" id="s2">2</div>
-        <span class="step-lbl" id="sl2">Job description</span>
-      </div>
-      <div class="step-line"></div>
-      <div class="step-item">
-        <div class="step-circle idle" id="s3">3</div>
-        <span class="step-lbl" id="sl3">Optimized resume</span>
-      </div>
+
+    <!-- Mode tabs -->
+    <div class="mode-tabs">
+      <button class="mode-tab active" id="tab-resume" onclick="switchMode('resume')">
+        <span class="tab-icon">📄</span> Resume ATS Optimizer
+      </button>
+      <button class="mode-tab" id="tab-linkedin" onclick="switchMode('linkedin')">
+        <span class="tab-icon">💼</span> LinkedIn Profile Optimizer
+      </button>
     </div>
 
-    <!-- Input -->
-    <div id="input-section">
-      <div class="role-row">
-        <div class="input-wrap">
-          <span class="input-icon">🎯</span>
-          <input type="text" id="target-role" placeholder="Target role — e.g. Senior Data Engineer" />
-        </div>
-        <select id="experience">
-          <option value="entry">Entry level (0–2 yrs)</option>
-          <option value="mid" selected>Mid level (3–5 yrs)</option>
-          <option value="senior">Senior (6–10 yrs)</option>
-          <option value="staff">Staff / Principal (10+ yrs)</option>
-        </select>
+    <!-- ═══ RESUME MODE ═══ -->
+    <div id="mode-resume">
+      <div class="steps-bar">
+        <div class="step-item"><div class="step-circle active" id="s1">1</div><span class="step-lbl active">Your resume</span></div>
+        <div class="step-line"></div>
+        <div class="step-item"><div class="step-circle idle" id="s2">2</div><span class="step-lbl">Job description</span></div>
+        <div class="step-line"></div>
+        <div class="step-item"><div class="step-circle idle" id="s3">3</div><span class="step-lbl">Optimized resume</span></div>
       </div>
 
-      <div class="input-grid">
-        <div class="card">
-          <div class="card-header">
-            <div class="card-icon purple">📄</div>
-            <span class="card-title">Current resume</span>
-            <span class="card-chars" id="resume-chars">0 chars</span>
+      <div id="input-section">
+        <div class="role-row">
+          <div class="input-wrap">
+            <span class="input-icon">🎯</span>
+            <input type="text" id="target-role" placeholder="Target role — e.g. Senior Data Engineer" />
           </div>
-          <div class="upload-zone" id="upload-zone"
-            ondragover="handleDragOver(event)"
-            ondragleave="handleDragLeave()"
-            ondrop="handleDrop(event)"
-            onclick="document.getElementById('file-input').click()">
-            <input type="file" id="file-input" accept=".pdf,.doc,.docx,.txt" onchange="handleFileSelect(event)" />
-            <div class="uz-icon">📎</div>
-            <div class="uz-text" id="upload-text"><strong>Click to upload</strong> or drag & drop</div>
-            <div class="uz-hint" id="upload-hint">PDF · DOCX · TXT</div>
-          </div>
-          <div class="or-row"><span>or paste below</span></div>
-          <textarea id="resume-input" rows="13" placeholder="Paste your resume text here..."></textarea>
+          <select id="experience">
+            <option value="entry">Entry level (0–2 yrs)</option>
+            <option value="mid" selected>Mid level (3–5 yrs)</option>
+            <option value="senior">Senior (6–10 yrs)</option>
+            <option value="staff">Staff / Principal (10+ yrs)</option>
+          </select>
         </div>
-
-        <div class="card">
-          <div class="card-header">
-            <div class="card-icon teal">💼</div>
-            <span class="card-title">Job description</span>
-            <span class="card-chars" id="jd-chars">0 chars</span>
+        <div class="input-grid">
+          <div class="card">
+            <div class="card-header">
+              <div class="card-icon purple">📄</div>
+              <span class="card-title">Current resume</span>
+              <span class="card-chars" id="resume-chars">0 chars</span>
+            </div>
+            <div class="upload-zone" id="upload-zone"
+              ondragover="handleDragOver(event)" ondragleave="handleDragLeave()" ondrop="handleDrop(event)"
+              onclick="document.getElementById('file-input').click()">
+              <input type="file" id="file-input" accept=".pdf,.doc,.docx,.txt" onchange="handleFileSelect(event)" />
+              <div class="uz-icon">📎</div>
+              <div class="uz-text" id="upload-text"><strong>Click to upload</strong> or drag & drop</div>
+              <div class="uz-hint" id="upload-hint">PDF · DOCX · TXT</div>
+            </div>
+            <div class="or-row"><span>or paste below</span></div>
+            <textarea id="resume-input" rows="13" placeholder="Paste your resume text here..."></textarea>
           </div>
-          <textarea id="jd-input" rows="20" placeholder="Paste the full job description here...
+          <div class="card">
+            <div class="card-header">
+              <div class="card-icon teal">💼</div>
+              <span class="card-title">Job description</span>
+              <span class="card-chars" id="jd-chars">0 chars</span>
+            </div>
+            <textarea id="jd-input" rows="20" placeholder="Paste the full job description here...
 
 Example:
 Senior Data Engineer — TechCorp
@@ -121,48 +118,107 @@ Requirements:
 - Snowflake or Redshift
 - PySpark and Kafka
 - AWS (Glue, S3, Lambda)
-- dbt for data modeling
+- dbt for data modeling"></textarea>
+          </div>
+        </div>
+        <div class="cta-wrap">
+          <button class="cta-btn" id="run-btn" onclick="optimize()" disabled>
+            <span class="cta-btn-inner"><span class="cta-icon">✨</span>Optimize My Resume</span>
+          </button>
+          <p class="cta-sub">Your resume never leaves your machine</p>
+        </div>
+        <div class="error-box" id="error-box" style="display:none;"></div>
+      </div>
 
-Nice to have: Terraform, Databricks"></textarea>
+      <div class="loading-view" id="loading" style="display:none;">
+        <div class="loading-card">
+          <div class="loading-top">
+            <div class="pulse-ring"><div class="pulse-core">✨</div></div>
+            <p class="loading-title">Optimizing your resume</p>
+            <p class="loading-sub">This takes 30–60 seconds — AI is working locally</p>
+          </div>
+          <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
+          <div class="loading-steps">
+            <div class="lstep" id="ls1"><span class="lstep-dot"></span>Reading resume & job description</div>
+            <div class="lstep" id="ls2"><span class="lstep-dot"></span>Identifying missing ATS keywords</div>
+            <div class="lstep" id="ls3"><span class="lstep-dot"></span>Rewriting experience bullets</div>
+            <div class="lstep" id="ls4"><span class="lstep-dot"></span>Scoring ATS compatibility</div>
+            <div class="lstep" id="ls5"><span class="lstep-dot"></span>Finalizing optimized resume</div>
+          </div>
         </div>
       </div>
-
-      <div class="cta-wrap">
-        <button class="cta-btn" id="run-btn" onclick="optimize()" disabled>
-          <span class="cta-btn-inner">
-            <span class="cta-icon">✨</span>
-            Optimize My Resume
-          </span>
-        </button>
-        <p class="cta-sub">Your resume never leaves your machine</p>
-      </div>
-
-      <div class="error-box" id="error-box" style="display:none;"></div>
+      <div id="results" style="display:none;"></div>
     </div>
 
-    <!-- Loading -->
-    <div class="loading-view" id="loading" style="display:none;">
-      <div class="loading-card">
-        <div class="loading-top">
-          <div class="pulse-ring"><div class="pulse-core">✨</div></div>
-          <p class="loading-title">Optimizing your resume</p>
-          <p class="loading-sub">This takes 30–60 seconds — AI is working hard locally</p>
+    <!-- ═══ LINKEDIN MODE ═══ -->
+    <div id="mode-linkedin" style="display:none;">
+      <div class="steps-bar">
+        <div class="step-item"><div class="step-circle active" id="ls-s1">1</div><span class="step-lbl active">Your profile</span></div>
+        <div class="step-line"></div>
+        <div class="step-item"><div class="step-circle idle" id="ls-s2">2</div><span class="step-lbl">Target role</span></div>
+        <div class="step-line"></div>
+        <div class="step-item"><div class="step-circle idle" id="ls-s3">3</div><span class="step-lbl">Optimized profile</span></div>
+      </div>
+
+      <div id="li-input-section">
+        <div class="role-row">
+          <div class="input-wrap">
+            <span class="input-icon">🎯</span>
+            <input type="text" id="li-target-role" placeholder="Target role — e.g. Senior Data Engineer" />
+          </div>
+          <select id="li-industry">
+            <option value="tech">Technology</option>
+            <option value="finance">Finance</option>
+            <option value="healthcare">Healthcare</option>
+            <option value="marketing">Marketing</option>
+            <option value="consulting">Consulting</option>
+            <option value="other">Other</option>
+          </select>
         </div>
-        <div class="progress-track">
-          <div class="progress-fill" id="progress-fill"></div>
+        <div class="card" style="margin-bottom:1.25rem;">
+          <div class="card-header">
+            <div class="card-icon" style="background:#E6F1FB;">💼</div>
+            <span class="card-title">Your LinkedIn profile</span>
+            <span class="card-chars" id="li-chars">0 chars</span>
+          </div>
+          <textarea id="li-input" rows="18" placeholder="Paste your LinkedIn profile text here...
+
+Include:
+• Your current headline
+• About / Summary section
+• Work experience (job titles, companies, bullet points)
+• Skills section
+
+Tip: On LinkedIn → View Profile → right-click → Select All → Copy"></textarea>
         </div>
-        <div class="loading-steps">
-          <div class="lstep" id="ls1"><span class="lstep-dot"></span>Reading resume & job description</div>
-          <div class="lstep" id="ls2"><span class="lstep-dot"></span>Identifying missing ATS keywords</div>
-          <div class="lstep" id="ls3"><span class="lstep-dot"></span>Rewriting experience bullets</div>
-          <div class="lstep" id="ls4"><span class="lstep-dot"></span>Scoring ATS compatibility</div>
-          <div class="lstep" id="ls5"><span class="lstep-dot"></span>Finalizing optimized resume</div>
+        <div class="cta-wrap">
+          <button class="cta-btn" id="li-run-btn" onclick="optimizeLinkedIn()" disabled>
+            <span class="cta-btn-inner"><span class="cta-icon">💼</span>Optimize My LinkedIn</span>
+          </button>
+          <p class="cta-sub">Get a recruiter-ready LinkedIn profile in 30 seconds</p>
+        </div>
+        <div class="error-box" id="li-error-box" style="display:none;"></div>
+      </div>
+
+      <div class="loading-view" id="li-loading" style="display:none;">
+        <div class="loading-card">
+          <div class="loading-top">
+            <div class="pulse-ring"><div class="pulse-core">💼</div></div>
+            <p class="loading-title">Optimizing your LinkedIn profile</p>
+            <p class="loading-sub">Rewriting for maximum recruiter visibility</p>
+          </div>
+          <div class="progress-track"><div class="progress-fill" id="li-progress-fill"></div></div>
+          <div class="loading-steps">
+            <div class="lstep" id="li-ls1"><span class="lstep-dot"></span>Analyzing your current profile</div>
+            <div class="lstep" id="li-ls2"><span class="lstep-dot"></span>Crafting a powerful headline</div>
+            <div class="lstep" id="li-ls3"><span class="lstep-dot"></span>Rewriting About section</div>
+            <div class="lstep" id="li-ls4"><span class="lstep-dot"></span>Optimizing experience bullets</div>
+            <div class="lstep" id="li-ls5"><span class="lstep-dot"></span>Finalizing recommendations</div>
+          </div>
         </div>
       </div>
+      <div id="li-results" style="display:none;"></div>
     </div>
-
-    <!-- Results -->
-    <div id="results" style="display:none;"></div>
 
   </div>
 </main>
