@@ -237,6 +237,89 @@ Return ONLY the JSON:"""
     except Exception as e:
         return jsonify({"error": f"Optimization failed: {str(e)}"}), 500
 
+
+@app.route("/optimize-linkedin", methods=["POST"])
+def optimize_linkedin():
+    from groq import Groq
+    api_key = os.environ.get("GROQ_API_KEY", "")
+    if not api_key:
+        return jsonify({"error": "GROQ_API_KEY not set."}), 503
+
+    data    = request.get_json()
+    profile = (data.get("profile") or "").strip()
+    role    = (data.get("target_role") or "the target role").strip()
+    industry = data.get("industry", "tech")
+
+    if len(profile) < 50:
+        return jsonify({"error": "Profile text too short — paste more of your LinkedIn profile"}), 400
+
+    prompt = f"""You are an expert LinkedIn profile optimizer and personal branding coach. Analyze the LinkedIn profile and return ONLY a valid JSON object. No markdown fences, no explanation, just raw JSON.
+
+Return exactly this structure:
+{{
+  "score_before": 45,
+  "score_after": 88,
+  "target_role": "{role}",
+  "headline": {{
+    "original": "current headline from profile",
+    "optimized": "powerful new headline targeting {role}"
+  }},
+  "about": {{
+    "original": "current about section",
+    "optimized": "compelling new about section (3-4 paragraphs, keyword-rich, first person)"
+  }},
+  "experience_bullets": [
+    {{
+      "company": "company name",
+      "original": "weak original bullet or description",
+      "optimized": "strong rewritten bullet with metrics and impact"
+    }}
+  ],
+  "skills_to_add": ["skill1", "skill2", "skill3", "skill4", "skill5"],
+  "recommendations": [
+    {{"type": "headline", "tip": "specific actionable tip"}},
+    {{"type": "about", "tip": "specific actionable tip"}},
+    {{"type": "activity", "tip": "specific actionable tip"}},
+    {{"type": "network", "tip": "specific actionable tip"}}
+  ]
+}}
+
+Rules:
+- score_before and score_after are integers 0-100 representing LinkedIn profile strength
+- headline must be under 220 characters, keyword-rich, attention-grabbing
+- about section must start with a hook, include keywords for {role} in {industry} industry
+- rewrite at least 2-3 experience bullet points from the profile
+- skills_to_add are missing but relevant skills for {role}
+- recommendations are specific, actionable tips (not generic advice)
+- NEVER invent job titles, companies, or dates not in the original profile
+
+LINKEDIN PROFILE:
+{profile[:5000]}
+
+TARGET ROLE: {role} ({industry} industry)
+
+Return ONLY the JSON:"""
+
+    try:
+        client   = Groq(api_key=api_key)
+        response = client.chat.completions.create(
+            model=GROQ_MODEL,
+            messages=[{{"role": "user", "content": prompt}}],
+            temperature=0.3,
+            max_tokens=3000,
+        )
+        raw = response.choices[0].message.content.strip()
+        raw = re.sub(r'```json|```', '', raw).strip()
+        match = re.search(r'\{{[\s\S]*\}}', raw)
+        if not match:
+            return jsonify({{"error": "Model returned unexpected output. Try again."}}), 500
+        json_str = match.group(0)
+        json_str = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f]', ' ', json_str)
+        result = json.loads(json_str)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({{"error": f"Optimization failed: {{str(e)}}"}}), 500
+
 # Init DB on startup
 with app.app_context():
     init_db()
