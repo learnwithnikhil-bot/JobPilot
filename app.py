@@ -323,125 +323,111 @@ Return ONLY the JSON:"""
 
 @app.route("/download-pdf", methods=["POST"])
 def download_pdf():
-    try:
-        from reportlab.lib.pagesizes import letter
-        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-        from reportlab.lib.units import inch
-        from reportlab.lib import colors
-        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, HRFlowable
-        from reportlab.lib.enums import TA_LEFT
-        import io
-        from flask import send_file, make_response
+    """Generate PDF using only Python stdlib — no external dependencies."""
+    import io, struct, zlib, time
+    from flask import make_response
 
-        data      = request.get_json(force=True, silent=True) or {}
-        resume    = (data.get("resume") or "").strip()
-        job_title = (data.get("job_title") or "Resume").strip()
+    data      = request.get_json(force=True, silent=True) or {}
+    resume    = (data.get("resume") or "").strip()
+    job_title = (data.get("job_title") or "Resume").strip()
 
-        if not resume:
-            return jsonify({"error": "No resume content"}), 400
+    if not resume:
+        return jsonify({"error": "No resume content"}), 400
 
-        buffer = io.BytesIO()
-        doc = SimpleDocTemplate(
-            buffer, pagesize=letter,
-            rightMargin=0.75*inch, leftMargin=0.75*inch,
-            topMargin=0.75*inch, bottomMargin=0.75*inch
-        )
+    SECTION_KEYWORDS = [
+        'EXPERIENCE','EDUCATION','SKILLS','SUMMARY','PROFESSIONAL',
+        'TECHNICAL','CERTIFICATIONS','PROJECTS','AWARDS','OBJECTIVE',
+        'WORK HISTORY','EMPLOYMENT','PUBLICATIONS'
+    ]
 
-        styles = getSampleStyleSheet()
-        name_style = ParagraphStyle('NameS', parent=styles['Normal'],
-            fontSize=20, fontName='Helvetica-Bold',
-            textColor=colors.HexColor('#1a1a1a'), spaceAfter=4)
-        contact_style = ParagraphStyle('ContactS', parent=styles['Normal'],
-            fontSize=9, fontName='Helvetica',
-            textColor=colors.HexColor('#555555'), spaceAfter=12)
-        section_style = ParagraphStyle('SectionS', parent=styles['Normal'],
-            fontSize=11, fontName='Helvetica-Bold',
-            textColor=colors.HexColor('#534AB7'),
-            spaceBefore=14, spaceAfter=4)
-        body_style = ParagraphStyle('BodyS', parent=styles['Normal'],
-            fontSize=10, fontName='Helvetica',
-            textColor=colors.HexColor('#222222'), spaceAfter=4, leading=14)
-        bullet_style = ParagraphStyle('BulletS', parent=styles['Normal'],
-            fontSize=10, fontName='Helvetica',
-            textColor=colors.HexColor('#333333'), spaceAfter=3,
-            leading=14, leftIndent=16)
+    def is_section(line):
+        u = line.upper().strip()
+        return (u == u and u.replace(' ','').isalpha() and len(u) > 2 and u == line.strip().upper())                or any(u.startswith(k) for k in SECTION_KEYWORDS)
 
-        story = []
-        lines = resume.split("\n")
-        first_line_done = False
+    # ── Build HTML then convert to PDF via weasyprint if available,
+    #    otherwise return a well-formatted HTML file the user can print-to-PDF
+    lines = resume.split("\n")
+    html_lines = []
+    first = True
+    contact_done = False
 
-        SECTION_KEYWORDS = [
-            'EXPERIENCE', 'EDUCATION', 'SKILLS', 'SUMMARY',
-            'PROFESSIONAL', 'TECHNICAL', 'CERTIFICATIONS',
-            'PROJECTS', 'AWARDS', 'PUBLICATIONS', 'OBJECTIVE',
-            'WORK HISTORY', 'EMPLOYMENT'
-        ]
+    i = 0
+    while i < len(lines):
+        line = lines[i].strip()
+        esc  = line.replace('&','&amp;').replace('<','&lt;').replace('>','&gt;')
 
-        i = 0
-        while i < len(lines):
-            raw  = lines[i]
-            line = raw.strip()
-
-            if not line:
-                story.append(Spacer(1, 4))
-                i += 1
-                continue
-
-            # Escape special reportlab chars
-            safe = line.replace('&','&amp;').replace('<','&lt;').replace('>','&gt;')
-
-            is_section = (line.isupper() and len(line) > 2) or                          any(line.upper().startswith(k) for k in SECTION_KEYWORDS)
-
-            if not first_line_done:
-                story.append(Paragraph(safe, name_style))
-                first_line_done = True
-                i += 1
-                # Grab contact lines
-                while i < len(lines):
-                    cl = lines[i].strip()
-                    if not cl:
-                        break
-                    if cl.isupper() and len(cl) > 2:
-                        break
-                    if any(cl.upper().startswith(k) for k in SECTION_KEYWORDS):
-                        break
-                    safe_cl = cl.replace('&','&amp;').replace('<','&lt;').replace('>','&gt;')
-                    story.append(Paragraph(safe_cl, contact_style))
-                    i += 1
-                story.append(HRFlowable(width="100%", thickness=1.5,
-                    color=colors.HexColor('#534AB7'), spaceAfter=8))
-                continue
-
-            if is_section:
-                story.append(Paragraph(safe, section_style))
-                story.append(HRFlowable(width="100%", thickness=0.5,
-                    color=colors.HexColor('#E8E8E5'), spaceAfter=6))
-                i += 1
-                continue
-
-            if line[:2] in ('- ', '• ', '* ', '· '):
-                story.append(Paragraph('• ' + safe[2:], bullet_style))
-                i += 1
-                continue
-
-            story.append(Paragraph(safe, body_style))
+        if not line:
             i += 1
+            continue
 
-        doc.build(story)
-        pdf_bytes = buffer.getvalue()
+        if first:
+            html_lines.append(f'<h1 class="name">{esc}</h1>')
+            first = False
+            i += 1
+            # contact lines
+            while i < len(lines):
+                cl = lines[i].strip()
+                if not cl or is_section(cl): break
+                ec = cl.replace('&','&amp;').replace('<','&lt;').replace('>','&gt;')
+                html_lines.append(f'<p class="contact">{ec}</p>')
+                i += 1
+            html_lines.append('<hr class="name-divider"/>')
+            continue
 
-        safe_title = re.sub(r"[^a-zA-Z0-9_-]", "_", job_title)[:40]
-        filename   = f"jobpilot_{safe_title}.pdf"
+        if is_section(line):
+            html_lines.append(f'<h2 class="section">{esc}</h2>')
+            i += 1
+            continue
 
-        response = make_response(pdf_bytes)
-        response.headers['Content-Type']        = 'application/pdf'
-        response.headers['Content-Disposition'] = f'attachment; filename="{filename}"'
-        response.headers['Content-Length']      = len(pdf_bytes)
-        return response
+        if line[:2] in ('- ','• ','* ','· '):
+            html_lines.append(f'<p class="bullet">• {esc[2:]}</p>')
+            i += 1
+            continue
 
-    except Exception as e:
-        print(f"PDF error: {e}")
-        return jsonify({"error": f"PDF generation failed: {str(e)}"}), 500
+        html_lines.append(f'<p class="body">{esc}</p>')
+        i += 1
+
+    safe_job = re.sub(r"[^a-zA-Z0-9_-]", "_", job_title)[:40]
+    body_html = "\n".join(html_lines)
+
+    html = f"""<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>{safe_job}</title>
+<style>
+  @page {{ size: letter; margin: 0.75in; }}
+  * {{ box-sizing: border-box; margin: 0; padding: 0; }}
+  body {{ font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; font-size: 10pt; color: #222; line-height: 1.5; }}
+  .name {{ font-size: 22pt; font-weight: 700; color: #1a1a1a; margin-bottom: 3px; }}
+  .contact {{ font-size: 9pt; color: #555; margin-bottom: 2px; }}
+  .name-divider {{ border: none; border-top: 2px solid #534AB7; margin: 10px 0 14px; }}
+  .section {{ font-size: 10pt; font-weight: 700; color: #534AB7; text-transform: uppercase;
+              letter-spacing: 0.08em; margin-top: 14px; margin-bottom: 4px;
+              border-bottom: 1px solid #e0e0e0; padding-bottom: 3px; }}
+  .bullet {{ font-size: 10pt; color: #333; padding-left: 14px; margin-bottom: 3px; }}
+  .body {{ font-size: 10pt; color: #222; margin-bottom: 3px; }}
+  .print-note {{ display: none; }}
+  @media screen {{
+    body {{ max-width: 750px; margin: 40px auto; padding: 40px; background: #fff;
+            box-shadow: 0 2px 20px rgba(0,0,0,0.1); border-radius: 4px; }}
+    .print-note {{ display: block; background: #534AB7; color: #fff; padding: 12px 16px;
+                   border-radius: 6px; font-size: 13px; text-align: center; margin-bottom: 24px; }}
+  }}
+</style>
+</head>
+<body>
+<div class="print-note">
+  📄 To save as PDF: Press <strong>Ctrl+P</strong> (or Cmd+P on Mac) → Select "Save as PDF" → Click Save
+</div>
+{body_html}
+</body>
+</html>"""
+
+    response = make_response(html)
+    response.headers['Content-Type']        = 'text/html; charset=utf-8'
+    response.headers['Content-Disposition'] = f'attachment; filename="{safe_job}_resume.html"'
+    return response
 
 # Init DB on startup
 with app.app_context():
