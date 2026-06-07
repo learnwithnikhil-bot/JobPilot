@@ -14,14 +14,25 @@ document.addEventListener('DOMContentLoaded', () => {
     checkReady();
   });
   checkHealth();
+
+  // LinkedIn input listener
+  const liInput  = document.getElementById('li-input');
+  const liRunBtn = document.getElementById('li-run-btn');
+  if (liInput) {
+    liInput.addEventListener('input', () => {
+      document.getElementById('li-chars').textContent = liInput.value.length.toLocaleString() + ' chars';
+      if (liRunBtn) liRunBtn.disabled = !aiReady || liInput.value.trim().length < 50;
+    });
+  }
 });
 
+// ── Health check ──────────────────────────────────────────────────────
 async function checkHealth() {
   const dot    = document.getElementById('status-dot');
   const label  = document.getElementById('status-label');
   const model  = document.getElementById('status-model');
   const banner = document.getElementById('setup-banner');
-  dot.className = 'status-dot';
+  dot.className     = 'status-dot';
   label.textContent = 'Checking...';
   model.textContent = '';
   try {
@@ -67,6 +78,15 @@ function updateSteps() {
   });
 }
 
+// ── Mode switching ────────────────────────────────────────────────────
+function switchMode(mode) {
+  document.getElementById('mode-resume').style.display   = mode === 'resume'   ? 'block' : 'none';
+  document.getElementById('mode-linkedin').style.display = mode === 'linkedin' ? 'block' : 'none';
+  document.getElementById('tab-resume').classList.toggle('active',   mode === 'resume');
+  document.getElementById('tab-linkedin').classList.toggle('active', mode === 'linkedin');
+}
+
+// ── File upload ───────────────────────────────────────────────────────
 function handleDragOver(e) { e.preventDefault(); document.getElementById('upload-zone').classList.add('drag-over'); }
 function handleDragLeave()  { document.getElementById('upload-zone').classList.remove('drag-over'); }
 function handleDrop(e) {
@@ -113,6 +133,7 @@ async function uploadFile(file) {
   }
 }
 
+// ── Loading animation ─────────────────────────────────────────────────
 let loadingInterval, progressInterval;
 
 function startLoading() {
@@ -143,6 +164,7 @@ function stopLoading() {
   ['ls1','ls2','ls3','ls4','ls5'].forEach(id => { document.getElementById(id).className = 'lstep done'; });
 }
 
+// ── Optimize resume ───────────────────────────────────────────────────
 async function optimize() {
   const resume = resumeInput.value.trim();
   const jd     = jdInput.value.trim();
@@ -171,6 +193,7 @@ async function optimize() {
   }
 }
 
+// ── Score ring SVG ────────────────────────────────────────────────────
 function scoreRing(score, color, label, delta) {
   const r = 30, cx = 36, cy = 36;
   const circ   = 2 * Math.PI * r;
@@ -191,16 +214,17 @@ function scoreRing(score, color, label, delta) {
     </div>`;
 }
 
+// ── Render results ────────────────────────────────────────────────────
 function renderResults(r, role, originalResume) {
   document.getElementById('loading').style.display = 'none';
   document.getElementById('s3').className   = 'step-circle done';
   document.getElementById('s3').textContent = '✓';
 
-  const delta      = r.ats_score_after - r.ats_score_before;
+  const delta       = r.ats_score_after - r.ats_score_before;
   const afterColor  = r.ats_score_after >= 80 ? '#3B6D11' : r.ats_score_after >= 60 ? '#BA7517' : '#A32D2D';
   const beforeColor = '#aaa';
-  const typeIcon = { keyword: '🔑', bullet: '✍️', structure: '📐', tone: '🎯' };
-  const typeBg   = { keyword: '#EEEDFE', bullet: '#E1F5EE', structure: '#E6F1FB', tone: '#FAEEDA' };
+  const typeIcon    = { keyword: '🔑', bullet: '✍️', structure: '📐', tone: '🎯' };
+  const typeBg      = { keyword: '#EEEDFE', bullet: '#E1F5EE', structure: '#E6F1FB', tone: '#FAEEDA' };
 
   const changesHtml = (r.changes || []).map(c => `
     <div class="change-item">
@@ -220,9 +244,9 @@ function renderResults(r, role, originalResume) {
       <div class="r-title">Optimized for <span>${escHtml(r.job_title || role)}</span></div>
       <div class="r-actions">
         <button class="btn-ghost" onclick="copyResume()">📋 Copy <span class="copy-feedback" id="copy-fb">Copied!</span></button>
-        <button class="btn-ghost" onclick="downloadResume()">⬇ Download .txt</button>
-        <button class="btn-pdf" id="pdf-btn" onclick="downloadPDF()">📄 Download PDF</button>
-        <button class="btn-share" id="share-btn" onclick="shareResult()">🔗 Share results</button>
+        <button class="btn-ghost" onclick="downloadTxt()">⬇ Download .txt</button>
+        <button class="btn-pdf"   id="pdf-btn" onclick="downloadPDF()">📄 Download PDF</button>
+        <button class="btn-share" id="share-btn" onclick="shareResult()">🔗 Share</button>
         <button class="btn-solid" onclick="resetApp()">↩ New resume</button>
       </div>
     </div>
@@ -252,13 +276,62 @@ function renderResults(r, role, originalResume) {
       <div class="kw-title" style="margin-bottom:14px;">What was changed & why</div>
       ${changesHtml}
     </div>
-    <p class="footer-note">100% private · your resume never leaves your machine · always review before submitting</p>
+    <p class="footer-note">100% private · always review before submitting</p>
   `;
 
   window._optimizedResume = r.optimized_resume || '';
-  window._lastResult = r;
+  window._lastResult      = r;
   document.getElementById('results').style.display = 'block';
   window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// ── Download PDF ──────────────────────────────────────────────────────
+async function downloadPDF() {
+  const btn = document.getElementById('pdf-btn');
+  if (!window._optimizedResume) {
+    alert('No optimized resume found. Please run the optimizer first.');
+    return;
+  }
+  btn.textContent = '⏳ Generating...';
+  btn.disabled    = true;
+  try {
+    const res = await fetch('/download-pdf', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({
+        resume:    window._optimizedResume,
+        job_title: window._lastResult ? (window._lastResult.job_title || 'Resume') : 'Resume'
+      })
+    });
+    if (!res.ok) {
+      let msg = 'Server error ' + res.status;
+      try { const d = await res.json(); if (d.error) msg = d.error; } catch {}
+      throw new Error(msg);
+    }
+    const blob = await res.blob();
+    const a    = document.createElement('a');
+    a.href     = URL.createObjectURL(blob);
+    a.download = 'optimized_resume.html';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(a.href);
+    btn.textContent = '✅ Downloaded!';
+    setTimeout(() => { btn.textContent = '📄 Download PDF'; btn.disabled = false; }, 2500);
+  } catch (err) {
+    console.error('PDF error:', err);
+    btn.textContent = '❌ ' + err.message;
+    setTimeout(() => { btn.textContent = '📄 Download PDF'; btn.disabled = false; }, 3000);
+  }
+}
+
+// ── Download TXT ──────────────────────────────────────────────────────
+function downloadTxt() {
+  const blob = new Blob([window._optimizedResume || ''], { type: 'text/plain' });
+  const a    = document.createElement('a');
+  a.href     = URL.createObjectURL(blob);
+  a.download = 'optimized_resume.txt';
+  a.click();
 }
 
 // ── Share ─────────────────────────────────────────────────────────────
@@ -266,19 +339,19 @@ async function shareResult() {
   const btn = document.getElementById('share-btn');
   if (!window._lastResult) return;
   btn.textContent = '⏳ Saving...';
-  btn.disabled = true;
+  btn.disabled    = true;
   try {
     const res  = await fetch('/share', {
-      method: 'POST',
+      method:  'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(window._lastResult)
+      body:    JSON.stringify(window._lastResult)
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Failed to save');
     showShareModal(data.share_url);
   } catch (err) {
     btn.textContent = '❌ Failed';
-    setTimeout(() => { btn.textContent = '🔗 Share results'; btn.disabled = false; }, 2000);
+    setTimeout(() => { btn.textContent = '🔗 Share'; btn.disabled = false; }, 2000);
   }
 }
 
@@ -292,84 +365,22 @@ function showShareModal(url) {
       <p style="font-size:14px;color:#666;margin-bottom:1.25rem;">Share this link to show your ATS score improvement</p>
       <div style="display:flex;gap:8px;margin-bottom:1rem;">
         <input value="${url}" readonly style="flex:1;padding:9px 12px;border:1px solid #ddd;border-radius:8px;font-size:12px;font-family:monospace;background:#F8F8F6;" />
-        <button id="copy-share-btn" onclick="navigator.clipboard.writeText('${url}').then(()=>{ document.getElementById('copy-share-btn').textContent='✅ Copied!'; })" style="padding:9px 14px;background:#3C3489;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:600;font-size:13px;">Copy</button>
+        <button id="copy-share-btn" onclick="navigator.clipboard.writeText('${url}').then(()=>{ document.getElementById('copy-share-btn').textContent='✅'; })" style="padding:9px 14px;background:#3C3489;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:600;">Copy</button>
       </div>
-      <div style="display:flex;gap:8px;justify-content:center;margin-top:1rem;flex-wrap:wrap;">
+      <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;">
         <a href="https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(url)}" target="_blank" style="padding:8px 16px;background:#0077B5;color:#fff;border-radius:8px;text-decoration:none;font-size:13px;font-weight:600;">💼 LinkedIn</a>
-        <a href="https://twitter.com/intent/tweet?text=Just optimized my resume with JobPilot — ATS score jumped! (free tool)&url=${encodeURIComponent(url)}" target="_blank" style="padding:8px 16px;background:#1DA1F2;color:#fff;border-radius:8px;text-decoration:none;font-size:13px;font-weight:600;">🐦 X / Twitter</a>
+        <a href="https://twitter.com/intent/tweet?text=Just optimized my resume with JobPilot — ATS score jumped! (free tool)&url=${encodeURIComponent(url)}" target="_blank" style="padding:8px 16px;background:#1DA1F2;color:#fff;border-radius:8px;text-decoration:none;font-size:13px;font-weight:600;">🐦 X</a>
       </div>
-      <button onclick="this.closest('[style]').remove()" style="margin-top:1.25rem;font-size:13px;color:#888;background:none;border:none;cursor:pointer;">Close</button>
+      <button onclick="this.closest('div[style]').remove()" style="margin-top:1.25rem;font-size:13px;color:#888;background:none;border:none;cursor:pointer;">Close</button>
     </div>`;
   document.body.appendChild(modal);
   modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
   const btn = document.getElementById('share-btn');
   btn.textContent = '✅ Shared!';
-  btn.disabled = false;
+  btn.disabled    = false;
 }
 
-// ── Helpers ───────────────────────────────────────────────────────────
-function escHtml(str) {
-  return (str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-}
-function copyResume() {
-  navigator.clipboard.writeText(window._optimizedResume || '').then(() => {
-    const fb = document.getElementById('copy-fb');
-    fb.classList.add('show');
-    setTimeout(() => fb.classList.remove('show'), 2000);
-  });
-}
-function downloadResume() {
-  const blob = new Blob([window._optimizedResume || ''], { type: 'text/plain' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = 'optimized-resume.txt';
-  a.click();
-}
-function resetApp() {
-  document.getElementById('results').style.display       = 'none';
-  document.getElementById('input-section').style.display = 'block';
-  ['s1','s2'].forEach((id,i) => {
-    const el = document.getElementById(id);
-    el.className   = 'step-circle ' + (i === 0 ? 'active' : 'idle');
-    el.textContent = i + 1;
-  });
-  document.getElementById('s3').className   = 'step-circle idle';
-  document.getElementById('s3').textContent = '3';
-  window.scrollTo({ top: 0, behavior: 'smooth' });
-}
-function showError(msg) {
-  const eb = document.getElementById('error-box');
-  eb.textContent   = '⚠ ' + msg;
-  eb.style.display = 'block';
-}
-function hideError() {
-  document.getElementById('error-box').style.display = 'none';
-}
-
-// ══════════════════════════════════════════════════════════════════════
-// ── Mode switching ────────────────────────────────────────────────────
-// ══════════════════════════════════════════════════════════════════════
-
-function switchMode(mode) {
-  document.getElementById('mode-resume').style.display   = mode === 'resume'   ? 'block' : 'none';
-  document.getElementById('mode-linkedin').style.display = mode === 'linkedin' ? 'block' : 'none';
-  document.getElementById('tab-resume').classList.toggle('active',   mode === 'resume');
-  document.getElementById('tab-linkedin').classList.toggle('active', mode === 'linkedin');
-}
-
-// ══════════════════════════════════════════════════════════════════════
 // ── LinkedIn optimizer ────────────────────────────────────────────────
-// ══════════════════════════════════════════════════════════════════════
-
-document.addEventListener('DOMContentLoaded', () => {
-  const liInput  = document.getElementById('li-input');
-  const liRunBtn = document.getElementById('li-run-btn');
-  liInput.addEventListener('input', () => {
-    document.getElementById('li-chars').textContent = liInput.value.length.toLocaleString() + ' chars';
-    liRunBtn.disabled = !aiReady || liInput.value.trim().length < 50;
-  });
-});
-
 let liLoadingInterval, liProgressInterval;
 
 function startLiLoading() {
@@ -406,13 +417,11 @@ async function optimizeLinkedIn() {
   const profile  = document.getElementById('li-input').value.trim();
   const role     = document.getElementById('li-target-role').value.trim() || 'target role';
   const industry = document.getElementById('li-industry').value;
-
   document.getElementById('li-input-section').style.display = 'none';
   document.getElementById('li-loading').style.display       = 'block';
   document.getElementById('li-results').style.display       = 'none';
   document.getElementById('li-error-box').style.display     = 'none';
   startLiLoading();
-
   try {
     const res  = await fetch('/optimize-linkedin', {
       method:  'POST',
@@ -440,26 +449,19 @@ function renderLinkedInResults(r) {
 
   const delta      = r.score_after - r.score_before;
   const scoreColor = r.score_after >= 80 ? '#27500A' : r.score_after >= 60 ? '#BA7517' : '#A32D2D';
+  const circ       = 2 * Math.PI * 30;
 
   const bulletsHtml = (r.experience_bullets || []).map(b => `
     <div class="li-bullet-item">
       <div class="li-bullet-company">🏢 ${escHtml(b.company)}</div>
       <div class="li-compare">
-        <div>
-          <div class="li-col-label" style="color:#888;">Original</div>
-          <div class="li-text-box">${escHtml(b.original)}</div>
-        </div>
-        <div>
-          <div class="li-col-label" style="color:#185FA5;">✨ Optimized</div>
-          <div class="li-text-box optimized">${escHtml(b.optimized)}</div>
-        </div>
+        <div><div class="li-col-label" style="color:#888;">Original</div><div class="li-text-box">${escHtml(b.original)}</div></div>
+        <div><div class="li-col-label" style="color:#185FA5;">✨ Optimized</div><div class="li-text-box optimized">${escHtml(b.optimized)}</div></div>
       </div>
     </div>`).join('');
 
-  const skillsHtml = (r.skills_to_add || []).map(s =>
-    `<span class="skill-tag">+ ${escHtml(s)}</span>`).join('');
-
-  const recsHtml = (r.recommendations || []).map(rec => `
+  const skillsHtml = (r.skills_to_add || []).map(s => `<span class="skill-tag">+ ${escHtml(s)}</span>`).join('');
+  const recsHtml   = (r.recommendations || []).map(rec => `
     <div class="rec-item">
       <span class="rec-badge">${escHtml(rec.type)}</span>
       <span class="rec-tip">${escHtml(rec.tip)}</span>
@@ -468,85 +470,63 @@ function renderLinkedInResults(r) {
   document.getElementById('li-results').innerHTML = `
     <div class="r-topbar">
       <div class="r-title">LinkedIn optimized for <span>${escHtml(r.target_role)}</span></div>
-      <div class="r-actions">
-        <button class="btn-solid" onclick="resetLinkedIn()">↩ Optimize another</button>
-      </div>
+      <div class="r-actions"><button class="btn-solid" onclick="resetLinkedIn()">↩ Optimize another</button></div>
     </div>
-
     <div class="score-grid" style="margin-bottom:2rem;">
       <div class="score-card">
         <div class="score-ring">
           <svg width="72" height="72" viewBox="0 0 72 72">
             <circle class="score-ring-bg" cx="36" cy="36" r="30"/>
             <circle class="score-ring-fill" cx="36" cy="36" r="30" stroke="#aaa"
-              stroke-dasharray="${2*Math.PI*30}"
-              stroke-dashoffset="${2*Math.PI*30 - (r.score_before/100)*2*Math.PI*30}"/>
+              stroke-dasharray="${circ}" stroke-dashoffset="${circ-(r.score_before/100)*circ}"/>
           </svg>
           <div class="score-num" style="color:#aaa;">${r.score_before}</div>
         </div>
-        <div class="score-lbl">Profile strength before</div>
+        <div class="score-lbl">Before</div>
       </div>
       <div class="score-card">
         <div class="score-ring">
           <svg width="72" height="72" viewBox="0 0 72 72">
             <circle class="score-ring-bg" cx="36" cy="36" r="30"/>
             <circle class="score-ring-fill" cx="36" cy="36" r="30" stroke="${scoreColor}"
-              stroke-dasharray="${2*Math.PI*30}"
-              stroke-dashoffset="${2*Math.PI*30 - (r.score_after/100)*2*Math.PI*30}"/>
+              stroke-dasharray="${circ}" stroke-dashoffset="${circ-(r.score_after/100)*circ}"/>
           </svg>
           <div class="score-num" style="color:${scoreColor};">${r.score_after}</div>
         </div>
-        <div class="score-lbl">Profile strength after</div>
+        <div class="score-lbl">After</div>
         <div class="score-delta" style="color:${scoreColor};">+${delta} pts</div>
       </div>
       <div class="stat-card"><div class="stat-big" style="color:#27500A;">${(r.experience_bullets||[]).length}</div><div class="stat-lbl2">Bullets rewritten</div></div>
       <div class="stat-card"><div class="stat-big" style="color:#534AB7;">${(r.skills_to_add||[]).length}</div><div class="stat-lbl2">Skills to add</div></div>
     </div>
-
     <div class="li-section">
       <div class="li-section-header">
         <div class="li-section-title">🏷️ Headline</div>
-        <button class="li-copy-btn" onclick="copyText(${JSON.stringify(r.headline?.optimized || '')}, this)">Copy optimized</button>
+        <button class="li-copy-btn" onclick="copyText(${JSON.stringify(r.headline?.optimized||'')}, this)">Copy optimized</button>
       </div>
       <div class="li-compare">
-        <div><div class="li-col-label" style="color:#888;">Current</div><div class="li-text-box">${escHtml(r.headline?.original || '')}</div></div>
-        <div><div class="li-col-label" style="color:#185FA5;">✨ Optimized</div><div class="li-text-box optimized">${escHtml(r.headline?.optimized || '')}</div></div>
+        <div><div class="li-col-label" style="color:#888;">Current</div><div class="li-text-box">${escHtml(r.headline?.original||'')}</div></div>
+        <div><div class="li-col-label" style="color:#185FA5;">✨ Optimized</div><div class="li-text-box optimized">${escHtml(r.headline?.optimized||'')}</div></div>
       </div>
     </div>
-
     <div class="li-section">
       <div class="li-section-header">
         <div class="li-section-title">📝 About section</div>
-        <button class="li-copy-btn" onclick="copyText(${JSON.stringify(r.about?.optimized || '')}, this)">Copy optimized</button>
+        <button class="li-copy-btn" onclick="copyText(${JSON.stringify(r.about?.optimized||'')}, this)">Copy optimized</button>
       </div>
       <div class="li-compare">
-        <div><div class="li-col-label" style="color:#888;">Current</div><div class="li-text-box">${escHtml(r.about?.original || '')}</div></div>
-        <div><div class="li-col-label" style="color:#185FA5;">✨ Optimized</div><div class="li-text-box optimized">${escHtml(r.about?.optimized || '')}</div></div>
+        <div><div class="li-col-label" style="color:#888;">Current</div><div class="li-text-box">${escHtml(r.about?.original||'')}</div></div>
+        <div><div class="li-col-label" style="color:#185FA5;">✨ Optimized</div><div class="li-text-box optimized">${escHtml(r.about?.optimized||'')}</div></div>
       </div>
     </div>
-
     <div class="li-section">
-      <div class="li-section-header">
-        <div class="li-section-title">💼 Experience bullets</div>
-      </div>
+      <div class="li-section-header"><div class="li-section-title">💼 Experience bullets</div></div>
       ${bulletsHtml}
     </div>
-
-    ${skillsHtml ? `
-    <div class="li-section">
-      <div class="li-section-header"><div class="li-section-title">⚡ Skills to add to your profile</div></div>
-      <div class="skills-grid">${skillsHtml}</div>
-    </div>` : ''}
-
-    ${recsHtml ? `
-    <div class="li-section">
-      <div class="li-section-header"><div class="li-section-title">💡 Action items</div></div>
-      ${recsHtml}
-    </div>` : ''}
-
+    ${skillsHtml ? `<div class="li-section"><div class="li-section-header"><div class="li-section-title">⚡ Skills to add</div></div><div class="skills-grid">${skillsHtml}</div></div>` : ''}
+    ${recsHtml   ? `<div class="li-section"><div class="li-section-header"><div class="li-section-title">💡 Action items</div></div>${recsHtml}</div>` : ''}
     <p class="footer-note">Copy each optimized section and paste directly into LinkedIn · Always review before publishing</p>
   `;
-
   document.getElementById('li-results').style.display = 'block';
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
@@ -565,4 +545,36 @@ function resetLinkedIn() {
   document.getElementById('ls-s3').className   = 'step-circle idle';
   document.getElementById('ls-s3').textContent = '3';
   window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────
+function escHtml(str) {
+  return (str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+function copyResume() {
+  navigator.clipboard.writeText(window._optimizedResume || '').then(() => {
+    const fb = document.getElementById('copy-fb');
+    fb.classList.add('show');
+    setTimeout(() => fb.classList.remove('show'), 2000);
+  });
+}
+function resetApp() {
+  document.getElementById('results').style.display       = 'none';
+  document.getElementById('input-section').style.display = 'block';
+  ['s1','s2'].forEach((id,i) => {
+    const el = document.getElementById(id);
+    el.className   = 'step-circle ' + (i === 0 ? 'active' : 'idle');
+    el.textContent = i + 1;
+  });
+  document.getElementById('s3').className   = 'step-circle idle';
+  document.getElementById('s3').textContent = '3';
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+function showError(msg) {
+  const eb = document.getElementById('error-box');
+  eb.textContent   = '⚠ ' + msg;
+  eb.style.display = 'block';
+}
+function hideError() {
+  document.getElementById('error-box').style.display = 'none';
 }
