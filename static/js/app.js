@@ -286,43 +286,83 @@ function renderResults(r, role, originalResume) {
 }
 
 // ── Download PDF ──────────────────────────────────────────────────────
-async function downloadPDF() {
+function showTemplateModal() {
+  const existing = document.getElementById('template-modal');
+  if (existing) { existing.remove(); return; }
+
+  const modal = document.createElement('div');
+  modal.id = 'template-modal';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:999;padding:1rem;';
+  modal.innerHTML = `
+    <div style="background:#fff;border-radius:16px;padding:2rem;max-width:480px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,0.2);">
+      <h2 style="font-size:18px;font-weight:800;margin-bottom:6px;">Choose a resume template</h2>
+      <p style="font-size:13px;color:#666;margin-bottom:1.5rem;">Open in browser → Cmd+P → Save as PDF</p>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:1.5rem;">
+        ${[
+          {id:'modern',    label:'Modern',    color:'#534AB7', desc:'Clean purple — great for tech roles'},
+          {id:'classic',   label:'Classic',   color:'#2C3E50', desc:'Navy professional — traditional industries'},
+          {id:'executive', label:'Executive', color:'#0F6E56', desc:'Green premium — senior roles'},
+          {id:'minimal',   label:'Minimal',   color:'#1a1a1a', desc:'Black & white — ATS safe'}
+        ].map(t => `
+          <button onclick="downloadWithTemplate('${t.id}')" style="padding:14px;border:2px solid #eee;border-radius:10px;background:#fff;cursor:pointer;text-align:left;transition:all 0.15s;" onmouseover="this.style.borderColor='${t.color}'" onmouseout="this.style.borderColor='#eee'">
+            <div style="width:28px;height:28px;border-radius:6px;background:${t.color};margin-bottom:8px;"></div>
+            <div style="font-size:13px;font-weight:700;color:#1a1a1a;margin-bottom:3px;">${t.label}</div>
+            <div style="font-size:11px;color:#888;line-height:1.4;">${t.desc}</div>
+          </button>`).join('')}
+      </div>
+      <button onclick="document.getElementById('template-modal').remove()" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;background:#fff;cursor:pointer;font-size:13px;color:#666;">Cancel</button>
+    </div>`;
+  document.body.appendChild(modal);
+  modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+}
+
+async function downloadWithTemplate(template) {
+  const modal = document.getElementById('template-modal');
+  if (modal) modal.remove();
+
   const btn = document.getElementById('pdf-btn');
-  if (!window._optimizedResume) {
-    alert('No optimized resume found. Please run the optimizer first.');
-    return;
-  }
-  btn.textContent = '⏳ Generating...';
+  btn.textContent = '⏳ Building...';
   btn.disabled    = true;
+
+  const payload = {
+    resume:    window._optimizedResume || '',
+    job_title: window._lastResult ? (window._lastResult.job_title || 'Resume') : 'Resume',
+    template:  template
+  };
+
+  // Store in sessionStorage so template switcher inside HTML works
+  try { sessionStorage.setItem('resumeData', JSON.stringify(payload)); } catch {}
+
   try {
     const res = await fetch('/download-pdf', {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({
-        resume:    window._optimizedResume,
-        job_title: window._lastResult ? (window._lastResult.job_title || 'Resume') : 'Resume'
-      })
+      body:    JSON.stringify(payload)
     });
     if (!res.ok) {
-      let msg = 'Server error ' + res.status;
+      let msg = 'Error ' + res.status;
       try { const d = await res.json(); if (d.error) msg = d.error; } catch {}
       throw new Error(msg);
     }
     const blob = await res.blob();
-    const a    = document.createElement('a');
-    a.href     = URL.createObjectURL(blob);
-    a.download = 'optimized_resume.html';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(a.href);
-    btn.textContent = '✅ Downloaded!';
+    const url  = URL.createObjectURL(blob);
+    // Open in new tab so user can Cmd+P to save as PDF
+    window.open(url, '_blank');
+    btn.textContent = '✅ Opened!';
     setTimeout(() => { btn.textContent = '📄 Download PDF'; btn.disabled = false; }, 2500);
   } catch (err) {
     console.error('PDF error:', err);
     btn.textContent = '❌ ' + err.message;
     setTimeout(() => { btn.textContent = '📄 Download PDF'; btn.disabled = false; }, 3000);
   }
+}
+
+async function downloadPDF() {
+  if (!window._optimizedResume) {
+    alert('No optimized resume found. Please run the optimizer first.');
+    return;
+  }
+  showTemplateModal();
 }
 
 // ── Download TXT ──────────────────────────────────────────────────────
