@@ -323,143 +323,125 @@ Return ONLY the JSON:"""
 
 @app.route("/download-pdf", methods=["POST"])
 def download_pdf():
-    from reportlab.lib.pagesizes import letter
-    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-    from reportlab.lib.units import inch
-    from reportlab.lib import colors
-    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, HRFlowable
-    from reportlab.lib.enums import TA_LEFT, TA_CENTER
-    import io
+    try:
+        from reportlab.lib.pagesizes import letter
+        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+        from reportlab.lib.units import inch
+        from reportlab.lib import colors
+        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, HRFlowable
+        from reportlab.lib.enums import TA_LEFT
+        import io
+        from flask import send_file, make_response
 
-    data     = request.get_json()
-    resume   = (data.get("resume") or "").strip()
-    job_title = (data.get("job_title") or "Optimized Resume").strip()
+        data      = request.get_json(force=True, silent=True) or {}
+        resume    = (data.get("resume") or "").strip()
+        job_title = (data.get("job_title") or "Resume").strip()
 
-    if not resume:
-        return jsonify({"error": "No resume content"}), 400
+        if not resume:
+            return jsonify({"error": "No resume content"}), 400
 
-    buffer = io.BytesIO()
-    doc = SimpleDocTemplate(
-        buffer,
-        pagesize=letter,
-        rightMargin=0.75*inch,
-        leftMargin=0.75*inch,
-        topMargin=0.75*inch,
-        bottomMargin=0.75*inch
-    )
-
-    styles = getSampleStyleSheet()
-
-    # Custom styles
-    name_style = ParagraphStyle(
-        'Name', parent=styles['Normal'],
-        fontSize=20, fontName='Helvetica-Bold',
-        textColor=colors.HexColor('#1a1a1a'),
-        spaceAfter=4, alignment=TA_LEFT
-    )
-    contact_style = ParagraphStyle(
-        'Contact', parent=styles['Normal'],
-        fontSize=9, fontName='Helvetica',
-        textColor=colors.HexColor('#555555'),
-        spaceAfter=12
-    )
-    section_style = ParagraphStyle(
-        'Section', parent=styles['Normal'],
-        fontSize=11, fontName='Helvetica-Bold',
-        textColor=colors.HexColor('#534AB7'),
-        spaceBefore=14, spaceAfter=4,
-        textTransform='uppercase'
-    )
-    body_style = ParagraphStyle(
-        'Body', parent=styles['Normal'],
-        fontSize=10, fontName='Helvetica',
-        textColor=colors.HexColor('#222222'),
-        spaceAfter=4, leading=14
-    )
-    bullet_style = ParagraphStyle(
-        'Bullet', parent=styles['Normal'],
-        fontSize=10, fontName='Helvetica',
-        textColor=colors.HexColor('#333333'),
-        spaceAfter=3, leading=14,
-        leftIndent=16, bulletIndent=6
-    )
-    job_title_style = ParagraphStyle(
-        'JobTitle', parent=styles['Normal'],
-        fontSize=10, fontName='Helvetica-Bold',
-        textColor=colors.HexColor('#1a1a1a'),
-        spaceAfter=2
-    )
-
-    story = []
-    lines = resume.split('\n')
-
-    i = 0
-    in_section = False
-
-    # Parse and build PDF elements
-    while i < len(lines):
-        line = lines[i].strip()
-
-        if not line:
-            story.append(Spacer(1, 4))
-            i += 1
-            continue
-
-        # Detect section headers (ALL CAPS lines or known keywords)
-        is_header = (
-            line.isupper() and len(line) > 3 or
-            any(line.upper().startswith(kw) for kw in [
-                'EXPERIENCE', 'EDUCATION', 'SKILLS', 'SUMMARY',
-                'PROFESSIONAL', 'TECHNICAL', 'CERTIFICATIONS',
-                'PROJECTS', 'AWARDS', 'PUBLICATIONS', 'OBJECTIVE'
-            ])
+        buffer = io.BytesIO()
+        doc = SimpleDocTemplate(
+            buffer, pagesize=letter,
+            rightMargin=0.75*inch, leftMargin=0.75*inch,
+            topMargin=0.75*inch, bottomMargin=0.75*inch
         )
 
-        if is_header and i == 0:
-            # First line = name
-            story.append(Paragraph(line.title() if line.isupper() else line, name_style))
-            i += 1
-            # Next few lines = contact info
-            while i < len(lines) and lines[i].strip() and not lines[i].strip().isupper():
-                story.append(Paragraph(lines[i].strip(), contact_style))
+        styles = getSampleStyleSheet()
+        name_style = ParagraphStyle('NameS', parent=styles['Normal'],
+            fontSize=20, fontName='Helvetica-Bold',
+            textColor=colors.HexColor('#1a1a1a'), spaceAfter=4)
+        contact_style = ParagraphStyle('ContactS', parent=styles['Normal'],
+            fontSize=9, fontName='Helvetica',
+            textColor=colors.HexColor('#555555'), spaceAfter=12)
+        section_style = ParagraphStyle('SectionS', parent=styles['Normal'],
+            fontSize=11, fontName='Helvetica-Bold',
+            textColor=colors.HexColor('#534AB7'),
+            spaceBefore=14, spaceAfter=4)
+        body_style = ParagraphStyle('BodyS', parent=styles['Normal'],
+            fontSize=10, fontName='Helvetica',
+            textColor=colors.HexColor('#222222'), spaceAfter=4, leading=14)
+        bullet_style = ParagraphStyle('BulletS', parent=styles['Normal'],
+            fontSize=10, fontName='Helvetica',
+            textColor=colors.HexColor('#333333'), spaceAfter=3,
+            leading=14, leftIndent=16)
+
+        story = []
+        lines = resume.split("\n")
+        first_line_done = False
+
+        SECTION_KEYWORDS = [
+            'EXPERIENCE', 'EDUCATION', 'SKILLS', 'SUMMARY',
+            'PROFESSIONAL', 'TECHNICAL', 'CERTIFICATIONS',
+            'PROJECTS', 'AWARDS', 'PUBLICATIONS', 'OBJECTIVE',
+            'WORK HISTORY', 'EMPLOYMENT'
+        ]
+
+        i = 0
+        while i < len(lines):
+            raw  = lines[i]
+            line = raw.strip()
+
+            if not line:
+                story.append(Spacer(1, 4))
                 i += 1
-            story.append(HRFlowable(width="100%", thickness=1.5,
-                                     color=colors.HexColor('#534AB7'), spaceAfter=6))
-            continue
+                continue
 
-        if is_header:
-            story.append(Spacer(1, 6))
-            story.append(Paragraph(line, section_style))
-            story.append(HRFlowable(width="100%", thickness=0.5,
-                                     color=colors.HexColor('#E8E8E5'), spaceAfter=6))
+            # Escape special reportlab chars
+            safe = line.replace('&','&amp;').replace('<','&lt;').replace('>','&gt;')
+
+            is_section = (line.isupper() and len(line) > 2) or                          any(line.upper().startswith(k) for k in SECTION_KEYWORDS)
+
+            if not first_line_done:
+                story.append(Paragraph(safe, name_style))
+                first_line_done = True
+                i += 1
+                # Grab contact lines
+                while i < len(lines):
+                    cl = lines[i].strip()
+                    if not cl:
+                        break
+                    if cl.isupper() and len(cl) > 2:
+                        break
+                    if any(cl.upper().startswith(k) for k in SECTION_KEYWORDS):
+                        break
+                    safe_cl = cl.replace('&','&amp;').replace('<','&lt;').replace('>','&gt;')
+                    story.append(Paragraph(safe_cl, contact_style))
+                    i += 1
+                story.append(HRFlowable(width="100%", thickness=1.5,
+                    color=colors.HexColor('#534AB7'), spaceAfter=8))
+                continue
+
+            if is_section:
+                story.append(Paragraph(safe, section_style))
+                story.append(HRFlowable(width="100%", thickness=0.5,
+                    color=colors.HexColor('#E8E8E5'), spaceAfter=6))
+                i += 1
+                continue
+
+            if line[:2] in ('- ', '• ', '* ', '· '):
+                story.append(Paragraph('• ' + safe[2:], bullet_style))
+                i += 1
+                continue
+
+            story.append(Paragraph(safe, body_style))
             i += 1
-            continue
 
-        # Bullet points
-        if line.startswith(('- ', '• ', '* ', '· ')):
-            bullet_text = line[2:].strip()
-            story.append(Paragraph(f'• {bullet_text}', bullet_style))
-            i += 1
-            continue
+        doc.build(story)
+        pdf_bytes = buffer.getvalue()
 
-        # Regular body text
-        story.append(Paragraph(line, body_style))
-        i += 1
+        safe_title = re.sub(r"[^a-zA-Z0-9_-]", "_", job_title)[:40]
+        filename   = f"jobpilot_{safe_title}.pdf"
 
-    # Build PDF
-    doc.build(story)
-    buffer.seek(0)
+        response = make_response(pdf_bytes)
+        response.headers['Content-Type']        = 'application/pdf'
+        response.headers['Content-Disposition'] = f'attachment; filename="{filename}"'
+        response.headers['Content-Length']      = len(pdf_bytes)
+        return response
 
-    from flask import send_file
-    safe_title = re.sub(r'[^a-zA-Z0-9_-]', '_', job_title)[:40]
-    filename   = f"jobpilot_{safe_title}_optimized.pdf"
-
-    return send_file(
-        buffer,
-        mimetype='application/pdf',
-        as_attachment=True,
-        download_name=filename
-    )
+    except Exception as e:
+        print(f"PDF error: {e}")
+        return jsonify({"error": f"PDF generation failed: {str(e)}"}), 500
 
 # Init DB on startup
 with app.app_context():
