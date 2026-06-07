@@ -5,7 +5,6 @@ document.addEventListener('DOMContentLoaded', () => {
   resumeInput = document.getElementById('resume-input');
   jdInput     = document.getElementById('jd-input');
   runBtn      = document.getElementById('run-btn');
-  
   resumeInput.addEventListener('input', () => {
     document.getElementById('resume-chars').textContent = resumeInput.value.length.toLocaleString() + ' chars';
     checkReady();
@@ -14,10 +13,8 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('jd-chars').textContent = jdInput.value.length.toLocaleString() + ' chars';
     checkReady();
   });
-  
   checkHealth();
 });
-
 
 async function checkHealth() {
   const dot    = document.getElementById('status-dot');
@@ -27,11 +24,9 @@ async function checkHealth() {
   dot.className = 'status-dot';
   label.textContent = 'Checking...';
   model.textContent = '';
-
   try {
     const res  = await fetch('/health');
     const data = await res.json();
-
     if (data.status === 'ready') {
       dot.className     = 'status-dot ok';
       label.textContent = 'Groq AI ready';
@@ -118,7 +113,6 @@ async function uploadFile(file) {
   }
 }
 
-
 let loadingInterval, progressInterval;
 
 function startLoading() {
@@ -126,7 +120,6 @@ function startLoading() {
   let i = 0;
   steps.forEach(id => { document.getElementById(id).className = 'lstep'; });
   document.getElementById(steps[0]).className = 'lstep active';
-
   loadingInterval = setInterval(() => {
     if (i < steps.length - 1) {
       document.getElementById(steps[i]).className = 'lstep done';
@@ -134,8 +127,6 @@ function startLoading() {
       document.getElementById(steps[i]).className = 'lstep active';
     }
   }, 2200);
-
-
   const fill = document.getElementById('progress-fill');
   let progress = 0;
   fill.style.width = '0%';
@@ -152,19 +143,16 @@ function stopLoading() {
   ['ls1','ls2','ls3','ls4','ls5'].forEach(id => { document.getElementById(id).className = 'lstep done'; });
 }
 
-
 async function optimize() {
   const resume = resumeInput.value.trim();
   const jd     = jdInput.value.trim();
   const role   = document.getElementById('target-role').value.trim() || 'the target role';
   const exp    = document.getElementById('experience').value;
-
   hideError();
   document.getElementById('input-section').style.display = 'none';
   document.getElementById('loading').style.display       = 'block';
   document.getElementById('results').style.display       = 'none';
   startLoading();
-
   try {
     const res  = await fetch('/optimize', {
       method: 'POST',
@@ -182,7 +170,6 @@ async function optimize() {
     showError(err.message);
   }
 }
-
 
 function scoreRing(score, color, label, delta) {
   const r = 30, cx = 36, cy = 36;
@@ -204,7 +191,6 @@ function scoreRing(score, color, label, delta) {
     </div>`;
 }
 
-
 function renderResults(r, role, originalResume) {
   document.getElementById('loading').style.display = 'none';
   document.getElementById('s3').className   = 'step-circle done';
@@ -213,7 +199,6 @@ function renderResults(r, role, originalResume) {
   const delta      = r.ats_score_after - r.ats_score_before;
   const afterColor  = r.ats_score_after >= 80 ? '#3B6D11' : r.ats_score_after >= 60 ? '#BA7517' : '#A32D2D';
   const beforeColor = '#aaa';
-
   const typeIcon = { keyword: '🔑', bullet: '✍️', structure: '📐', tone: '🎯' };
   const typeBg   = { keyword: '#EEEDFE', bullet: '#E1F5EE', structure: '#E6F1FB', tone: '#FAEEDA' };
 
@@ -240,21 +225,18 @@ function renderResults(r, role, originalResume) {
         <button class="btn-solid" onclick="resetApp()">↩ New resume</button>
       </div>
     </div>
-
     <div class="score-grid">
       ${scoreRing(r.ats_score_before, beforeColor, 'Score before', null)}
       ${scoreRing(r.ats_score_after,  afterColor,  'Score after',  delta)}
       <div class="stat-card"><div class="stat-big" style="color:#27500A;">${(r.keywords_added||[]).length}</div><div class="stat-lbl2">Keywords added</div></div>
       <div class="stat-card"><div class="stat-big" style="color:${(r.keywords_missing||[]).length > 0 ? '#BA7517' : '#27500A'};">${(r.keywords_missing||[]).length}</div><div class="stat-lbl2">Still missing</div></div>
     </div>
-
     <div class="kw-section">
       <div class="kw-title">Keyword analysis</div>
       ${kwAdded   ? `<div class="kw-group"><div class="kw-group-label">Added to your resume</div><div class="kw-row">${kwAdded}</div></div>`     : ''}
       ${kwPresent ? `<div class="kw-group"><div class="kw-group-label">Already present</div><div class="kw-row">${kwPresent}</div></div>`         : ''}
       ${kwMissing ? `<div class="kw-group"><div class="kw-group-label">Could not fit naturally</div><div class="kw-row">${kwMissing}</div></div>` : ''}
     </div>
-
     <div class="resume-grid">
       <div>
         <div class="resume-panel-label" style="color:#888;">📄 Original resume</div>
@@ -265,7 +247,6 @@ function renderResults(r, role, originalResume) {
         <div class="resume-box optimized">${escHtml(r.optimized_resume || '')}</div>
       </div>
     </div>
-
     <div class="changes-section">
       <div class="kw-title" style="margin-bottom:14px;">What was changed & why</div>
       ${changesHtml}
@@ -362,4 +343,225 @@ function showError(msg) {
 }
 function hideError() {
   document.getElementById('error-box').style.display = 'none';
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// ── Mode switching ────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════
+
+function switchMode(mode) {
+  document.getElementById('mode-resume').style.display   = mode === 'resume'   ? 'block' : 'none';
+  document.getElementById('mode-linkedin').style.display = mode === 'linkedin' ? 'block' : 'none';
+  document.getElementById('tab-resume').classList.toggle('active',   mode === 'resume');
+  document.getElementById('tab-linkedin').classList.toggle('active', mode === 'linkedin');
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// ── LinkedIn optimizer ────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════
+
+document.addEventListener('DOMContentLoaded', () => {
+  const liInput  = document.getElementById('li-input');
+  const liRunBtn = document.getElementById('li-run-btn');
+  liInput.addEventListener('input', () => {
+    document.getElementById('li-chars').textContent = liInput.value.length.toLocaleString() + ' chars';
+    liRunBtn.disabled = !aiReady || liInput.value.trim().length < 50;
+  });
+});
+
+let liLoadingInterval, liProgressInterval;
+
+function startLiLoading() {
+  const steps = ['li-ls1','li-ls2','li-ls3','li-ls4','li-ls5'];
+  let i = 0;
+  steps.forEach(id => { document.getElementById(id).className = 'lstep'; });
+  document.getElementById(steps[0]).className = 'lstep active';
+  liLoadingInterval = setInterval(() => {
+    if (i < steps.length - 1) {
+      document.getElementById(steps[i]).className = 'lstep done';
+      i++;
+      document.getElementById(steps[i]).className = 'lstep active';
+    }
+  }, 2000);
+  const fill = document.getElementById('li-progress-fill');
+  let progress = 0;
+  fill.style.width = '0%';
+  liProgressInterval = setInterval(() => {
+    progress += (95 - progress) * 0.04;
+    fill.style.width = Math.min(progress, 94) + '%';
+  }, 300);
+}
+
+function stopLiLoading() {
+  clearInterval(liLoadingInterval);
+  clearInterval(liProgressInterval);
+  document.getElementById('li-progress-fill').style.width = '100%';
+  ['li-ls1','li-ls2','li-ls3','li-ls4','li-ls5'].forEach(id => {
+    document.getElementById(id).className = 'lstep done';
+  });
+}
+
+async function optimizeLinkedIn() {
+  const profile  = document.getElementById('li-input').value.trim();
+  const role     = document.getElementById('li-target-role').value.trim() || 'target role';
+  const industry = document.getElementById('li-industry').value;
+
+  document.getElementById('li-input-section').style.display = 'none';
+  document.getElementById('li-loading').style.display       = 'block';
+  document.getElementById('li-results').style.display       = 'none';
+  document.getElementById('li-error-box').style.display     = 'none';
+  startLiLoading();
+
+  try {
+    const res  = await fetch('/optimize-linkedin', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ profile, target_role: role, industry })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Optimization failed');
+    stopLiLoading();
+    renderLinkedInResults(data);
+  } catch (err) {
+    stopLiLoading();
+    document.getElementById('li-loading').style.display       = 'none';
+    document.getElementById('li-input-section').style.display = 'block';
+    const eb = document.getElementById('li-error-box');
+    eb.textContent   = '⚠ ' + err.message;
+    eb.style.display = 'block';
+  }
+}
+
+function renderLinkedInResults(r) {
+  document.getElementById('li-loading').style.display = 'none';
+  document.getElementById('ls-s3').className   = 'step-circle done';
+  document.getElementById('ls-s3').textContent = '✓';
+
+  const delta      = r.score_after - r.score_before;
+  const scoreColor = r.score_after >= 80 ? '#27500A' : r.score_after >= 60 ? '#BA7517' : '#A32D2D';
+
+  const bulletsHtml = (r.experience_bullets || []).map(b => `
+    <div class="li-bullet-item">
+      <div class="li-bullet-company">🏢 ${escHtml(b.company)}</div>
+      <div class="li-compare">
+        <div>
+          <div class="li-col-label" style="color:#888;">Original</div>
+          <div class="li-text-box">${escHtml(b.original)}</div>
+        </div>
+        <div>
+          <div class="li-col-label" style="color:#185FA5;">✨ Optimized</div>
+          <div class="li-text-box optimized">${escHtml(b.optimized)}</div>
+        </div>
+      </div>
+    </div>`).join('');
+
+  const skillsHtml = (r.skills_to_add || []).map(s =>
+    `<span class="skill-tag">+ ${escHtml(s)}</span>`).join('');
+
+  const recsHtml = (r.recommendations || []).map(rec => `
+    <div class="rec-item">
+      <span class="rec-badge">${escHtml(rec.type)}</span>
+      <span class="rec-tip">${escHtml(rec.tip)}</span>
+    </div>`).join('');
+
+  document.getElementById('li-results').innerHTML = `
+    <div class="r-topbar">
+      <div class="r-title">LinkedIn optimized for <span>${escHtml(r.target_role)}</span></div>
+      <div class="r-actions">
+        <button class="btn-solid" onclick="resetLinkedIn()">↩ Optimize another</button>
+      </div>
+    </div>
+
+    <div class="score-grid" style="margin-bottom:2rem;">
+      <div class="score-card">
+        <div class="score-ring">
+          <svg width="72" height="72" viewBox="0 0 72 72">
+            <circle class="score-ring-bg" cx="36" cy="36" r="30"/>
+            <circle class="score-ring-fill" cx="36" cy="36" r="30" stroke="#aaa"
+              stroke-dasharray="${2*Math.PI*30}"
+              stroke-dashoffset="${2*Math.PI*30 - (r.score_before/100)*2*Math.PI*30}"/>
+          </svg>
+          <div class="score-num" style="color:#aaa;">${r.score_before}</div>
+        </div>
+        <div class="score-lbl">Profile strength before</div>
+      </div>
+      <div class="score-card">
+        <div class="score-ring">
+          <svg width="72" height="72" viewBox="0 0 72 72">
+            <circle class="score-ring-bg" cx="36" cy="36" r="30"/>
+            <circle class="score-ring-fill" cx="36" cy="36" r="30" stroke="${scoreColor}"
+              stroke-dasharray="${2*Math.PI*30}"
+              stroke-dashoffset="${2*Math.PI*30 - (r.score_after/100)*2*Math.PI*30}"/>
+          </svg>
+          <div class="score-num" style="color:${scoreColor};">${r.score_after}</div>
+        </div>
+        <div class="score-lbl">Profile strength after</div>
+        <div class="score-delta" style="color:${scoreColor};">+${delta} pts</div>
+      </div>
+      <div class="stat-card"><div class="stat-big" style="color:#27500A;">${(r.experience_bullets||[]).length}</div><div class="stat-lbl2">Bullets rewritten</div></div>
+      <div class="stat-card"><div class="stat-big" style="color:#534AB7;">${(r.skills_to_add||[]).length}</div><div class="stat-lbl2">Skills to add</div></div>
+    </div>
+
+    <div class="li-section">
+      <div class="li-section-header">
+        <div class="li-section-title">🏷️ Headline</div>
+        <button class="li-copy-btn" onclick="copyText(${JSON.stringify(r.headline?.optimized || '')}, this)">Copy optimized</button>
+      </div>
+      <div class="li-compare">
+        <div><div class="li-col-label" style="color:#888;">Current</div><div class="li-text-box">${escHtml(r.headline?.original || '')}</div></div>
+        <div><div class="li-col-label" style="color:#185FA5;">✨ Optimized</div><div class="li-text-box optimized">${escHtml(r.headline?.optimized || '')}</div></div>
+      </div>
+    </div>
+
+    <div class="li-section">
+      <div class="li-section-header">
+        <div class="li-section-title">📝 About section</div>
+        <button class="li-copy-btn" onclick="copyText(${JSON.stringify(r.about?.optimized || '')}, this)">Copy optimized</button>
+      </div>
+      <div class="li-compare">
+        <div><div class="li-col-label" style="color:#888;">Current</div><div class="li-text-box">${escHtml(r.about?.original || '')}</div></div>
+        <div><div class="li-col-label" style="color:#185FA5;">✨ Optimized</div><div class="li-text-box optimized">${escHtml(r.about?.optimized || '')}</div></div>
+      </div>
+    </div>
+
+    <div class="li-section">
+      <div class="li-section-header">
+        <div class="li-section-title">💼 Experience bullets</div>
+      </div>
+      ${bulletsHtml}
+    </div>
+
+    ${skillsHtml ? `
+    <div class="li-section">
+      <div class="li-section-header"><div class="li-section-title">⚡ Skills to add to your profile</div></div>
+      <div class="skills-grid">${skillsHtml}</div>
+    </div>` : ''}
+
+    ${recsHtml ? `
+    <div class="li-section">
+      <div class="li-section-header"><div class="li-section-title">💡 Action items</div></div>
+      ${recsHtml}
+    </div>` : ''}
+
+    <p class="footer-note">Copy each optimized section and paste directly into LinkedIn · Always review before publishing</p>
+  `;
+
+  document.getElementById('li-results').style.display = 'block';
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function copyText(text, btn) {
+  navigator.clipboard.writeText(text).then(() => {
+    const orig = btn.textContent;
+    btn.textContent = '✅ Copied!';
+    setTimeout(() => { btn.textContent = orig; }, 2000);
+  });
+}
+
+function resetLinkedIn() {
+  document.getElementById('li-results').style.display       = 'none';
+  document.getElementById('li-input-section').style.display = 'block';
+  document.getElementById('ls-s3').className   = 'step-circle idle';
+  document.getElementById('ls-s3').textContent = '3';
+  window.scrollTo({ top: 0, behavior: 'smooth' });
 }
