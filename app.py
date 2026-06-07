@@ -231,8 +231,20 @@ Return ONLY the JSON:"""
         if not match:
             return jsonify({"error": "Model returned unexpected output. Try again."}), 500
         json_str = match.group(0)
-        json_str = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f]', ' ', json_str)
-        result = json.loads(json_str)
+        # Remove all control characters except tab and newline at top level
+        json_str = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]', ' ', json_str)
+        # Fix unescaped newlines/tabs inside JSON string values
+        def fix_json_string(m):
+            s = m.group(0)
+            s = s.replace('\n', '\\n').replace('\r', ' ').replace('\t', ' ')
+            return s
+        json_str = re.sub(r'(?s)"(.*?)"', fix_json_string, json_str)
+        try:
+            result = json.loads(json_str)
+        except json.JSONDecodeError:
+            # Last resort: use ast literal eval after sanitizing
+            json_str2 = re.sub(r'[\x00-\x1f\x7f]', ' ', match.group(0))
+            result = json.loads(json_str2)
         return jsonify(result)
     except Exception as e:
         return jsonify({"error": f"Optimization failed: {str(e)}"}), 500
