@@ -5,29 +5,26 @@ document.addEventListener('DOMContentLoaded', () => {
   resumeInput = document.getElementById('resume-input');
   jdInput     = document.getElementById('jd-input');
   runBtn      = document.getElementById('run-btn');
-
+  
   resumeInput.addEventListener('input', () => {
-    document.getElementById('resume-chars').textContent =
-      resumeInput.value.length.toLocaleString() + ' chars';
+    document.getElementById('resume-chars').textContent = resumeInput.value.length.toLocaleString() + ' chars';
     checkReady();
   });
   jdInput.addEventListener('input', () => {
-    document.getElementById('jd-chars').textContent =
-      jdInput.value.length.toLocaleString() + ' chars';
+    document.getElementById('jd-chars').textContent = jdInput.value.length.toLocaleString() + ' chars';
     checkReady();
   });
-
+  
   checkHealth();
 });
 
-// ── Health check ──────────────────────────────────────────────────────
+
 async function checkHealth() {
   const dot    = document.getElementById('status-dot');
   const label  = document.getElementById('status-label');
   const model  = document.getElementById('status-model');
   const banner = document.getElementById('setup-banner');
-
-  dot.className   = 'status-dot';
+  dot.className = 'status-dot';
   label.textContent = 'Checking...';
   model.textContent = '';
 
@@ -59,9 +56,7 @@ async function checkHealth() {
 }
 
 function checkReady() {
-  const ok = aiReady &&
-             resumeInput.value.trim().length > 50 &&
-             jdInput.value.trim().length > 50;
+  const ok = aiReady && resumeInput.value.trim().length > 50 && jdInput.value.trim().length > 50;
   runBtn.disabled = !ok;
   updateSteps();
 }
@@ -77,24 +72,15 @@ function updateSteps() {
   });
 }
 
-// ── File upload ───────────────────────────────────────────────────────
-function handleDragOver(e) {
-  e.preventDefault();
-  document.getElementById('upload-zone').classList.add('drag-over');
-}
-function handleDragLeave() {
-  document.getElementById('upload-zone').classList.remove('drag-over');
-}
+function handleDragOver(e) { e.preventDefault(); document.getElementById('upload-zone').classList.add('drag-over'); }
+function handleDragLeave()  { document.getElementById('upload-zone').classList.remove('drag-over'); }
 function handleDrop(e) {
   e.preventDefault();
   document.getElementById('upload-zone').classList.remove('drag-over');
   const file = e.dataTransfer.files[0];
   if (file) uploadFile(file);
 }
-function handleFileSelect(e) {
-  const file = e.target.files[0];
-  if (file) uploadFile(file);
-}
+function handleFileSelect(e) { const file = e.target.files[0]; if (file) uploadFile(file); }
 
 function setUploadState(state, filename) {
   const zone = document.getElementById('upload-zone');
@@ -132,7 +118,7 @@ async function uploadFile(file) {
   }
 }
 
-// ── Loading animation ─────────────────────────────────────────────────
+
 let loadingInterval, progressInterval;
 
 function startLoading() {
@@ -149,7 +135,7 @@ function startLoading() {
     }
   }, 2200);
 
-  // Animate progress bar
+
   const fill = document.getElementById('progress-fill');
   let progress = 0;
   fill.style.width = '0%';
@@ -163,12 +149,10 @@ function stopLoading() {
   clearInterval(loadingInterval);
   clearInterval(progressInterval);
   document.getElementById('progress-fill').style.width = '100%';
-  ['ls1','ls2','ls3','ls4','ls5'].forEach(id => {
-    document.getElementById(id).className = 'lstep done';
-  });
+  ['ls1','ls2','ls3','ls4','ls5'].forEach(id => { document.getElementById(id).className = 'lstep done'; });
 }
 
-// ── Optimize ──────────────────────────────────────────────────────────
+
 async function optimize() {
   const resume = resumeInput.value.trim();
   const jd     = jdInput.value.trim();
@@ -183,9 +167,9 @@ async function optimize() {
 
   try {
     const res  = await fetch('/optimize', {
-      method:  'POST',
+      method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ resume, job_description: jd, target_role: role, experience: exp })
+      body: JSON.stringify({ resume, job_description: jd, target_role: role, experience: exp })
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Optimization failed');
@@ -199,23 +183,19 @@ async function optimize() {
   }
 }
 
-// ── Score ring SVG ────────────────────────────────────────────────────
+
 function scoreRing(score, color, label, delta) {
   const r = 30, cx = 36, cy = 36;
-  const circ = 2 * Math.PI * r;
+  const circ   = 2 * Math.PI * r;
   const offset = circ - (score / 100) * circ;
-  const deltaHtml = delta !== null
-    ? `<div class="score-delta" style="color:${color};">+${delta} pts</div>` : '';
+  const deltaHtml = delta !== null ? `<div class="score-delta" style="color:${color};">+${delta} pts</div>` : '';
   return `
     <div class="score-card">
       <div class="score-ring">
         <svg width="72" height="72" viewBox="0 0 72 72">
           <circle class="score-ring-bg" cx="${cx}" cy="${cy}" r="${r}"/>
           <circle class="score-ring-fill" cx="${cx}" cy="${cy}" r="${r}"
-            stroke="${color}"
-            stroke-dasharray="${circ}"
-            stroke-dashoffset="${offset}"
-          />
+            stroke="${color}" stroke-dasharray="${circ}" stroke-dashoffset="${offset}"/>
         </svg>
         <div class="score-num" style="color:${color};">${score}</div>
       </div>
@@ -224,14 +204,14 @@ function scoreRing(score, color, label, delta) {
     </div>`;
 }
 
-// ── Render results ────────────────────────────────────────────────────
+
 function renderResults(r, role, originalResume) {
   document.getElementById('loading').style.display = 'none';
   document.getElementById('s3').className   = 'step-circle done';
   document.getElementById('s3').textContent = '✓';
 
   const delta      = r.ats_score_after - r.ats_score_before;
-  const afterColor = r.ats_score_after >= 80 ? '#3B6D11' : r.ats_score_after >= 60 ? '#BA7517' : '#A32D2D';
+  const afterColor  = r.ats_score_after >= 80 ? '#3B6D11' : r.ats_score_after >= 60 ? '#BA7517' : '#A32D2D';
   const beforeColor = '#aaa';
 
   const typeIcon = { keyword: '🔑', bullet: '✍️', structure: '📐', tone: '🎯' };
@@ -254,8 +234,9 @@ function renderResults(r, role, originalResume) {
     <div class="r-topbar">
       <div class="r-title">Optimized for <span>${escHtml(r.job_title || role)}</span></div>
       <div class="r-actions">
-        <button class="btn-ghost" onclick="copyResume()">📋 Copy resume <span class="copy-feedback" id="copy-fb">Copied!</span></button>
+        <button class="btn-ghost" onclick="copyResume()">📋 Copy <span class="copy-feedback" id="copy-fb">Copied!</span></button>
         <button class="btn-ghost" onclick="downloadResume()">⬇ Download .txt</button>
+        <button class="btn-share" id="share-btn" onclick="shareResult()">🔗 Share results</button>
         <button class="btn-solid" onclick="resetApp()">↩ New resume</button>
       </div>
     </div>
@@ -263,14 +244,8 @@ function renderResults(r, role, originalResume) {
     <div class="score-grid">
       ${scoreRing(r.ats_score_before, beforeColor, 'Score before', null)}
       ${scoreRing(r.ats_score_after,  afterColor,  'Score after',  delta)}
-      <div class="stat-card">
-        <div class="stat-big" style="color:#27500A;">${(r.keywords_added||[]).length}</div>
-        <div class="stat-lbl2">Keywords added</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-big" style="color:${(r.keywords_missing||[]).length > 0 ? '#BA7517' : '#27500A'};">${(r.keywords_missing||[]).length}</div>
-        <div class="stat-lbl2">Still missing</div>
-      </div>
+      <div class="stat-card"><div class="stat-big" style="color:#27500A;">${(r.keywords_added||[]).length}</div><div class="stat-lbl2">Keywords added</div></div>
+      <div class="stat-card"><div class="stat-big" style="color:${(r.keywords_missing||[]).length > 0 ? '#BA7517' : '#27500A'};">${(r.keywords_missing||[]).length}</div><div class="stat-lbl2">Still missing</div></div>
     </div>
 
     <div class="kw-section">
@@ -295,16 +270,59 @@ function renderResults(r, role, originalResume) {
       <div class="kw-title" style="margin-bottom:14px;">What was changed & why</div>
       ${changesHtml}
     </div>
-
-    <p class="footer-note">
-      100% private · your resume never leaves your machine · always review before submitting
-    </p>
+    <p class="footer-note">100% private · your resume never leaves your machine · always review before submitting</p>
   `;
 
   window._optimizedResume = r.optimized_resume || '';
   window._lastResult = r;
   document.getElementById('results').style.display = 'block';
   window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// ── Share ─────────────────────────────────────────────────────────────
+async function shareResult() {
+  const btn = document.getElementById('share-btn');
+  if (!window._lastResult) return;
+  btn.textContent = '⏳ Saving...';
+  btn.disabled = true;
+  try {
+    const res  = await fetch('/share', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(window._lastResult)
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to save');
+    showShareModal(data.share_url);
+  } catch (err) {
+    btn.textContent = '❌ Failed';
+    setTimeout(() => { btn.textContent = '🔗 Share results'; btn.disabled = false; }, 2000);
+  }
+}
+
+function showShareModal(url) {
+  const modal = document.createElement('div');
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:999;padding:1rem;';
+  modal.innerHTML = `
+    <div style="background:#fff;border-radius:16px;padding:2rem;max-width:460px;width:100%;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,0.2);">
+      <div style="font-size:36px;margin-bottom:1rem;">🎉</div>
+      <h2 style="font-size:20px;font-weight:800;margin-bottom:8px;">Your results are live!</h2>
+      <p style="font-size:14px;color:#666;margin-bottom:1.25rem;">Share this link to show your ATS score improvement</p>
+      <div style="display:flex;gap:8px;margin-bottom:1rem;">
+        <input value="${url}" readonly style="flex:1;padding:9px 12px;border:1px solid #ddd;border-radius:8px;font-size:12px;font-family:monospace;background:#F8F8F6;" />
+        <button id="copy-share-btn" onclick="navigator.clipboard.writeText('${url}').then(()=>{ document.getElementById('copy-share-btn').textContent='✅ Copied!'; })" style="padding:9px 14px;background:#3C3489;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:600;font-size:13px;">Copy</button>
+      </div>
+      <div style="display:flex;gap:8px;justify-content:center;margin-top:1rem;flex-wrap:wrap;">
+        <a href="https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(url)}" target="_blank" style="padding:8px 16px;background:#0077B5;color:#fff;border-radius:8px;text-decoration:none;font-size:13px;font-weight:600;">💼 LinkedIn</a>
+        <a href="https://twitter.com/intent/tweet?text=Just optimized my resume with JobPilot — ATS score jumped! (free tool)&url=${encodeURIComponent(url)}" target="_blank" style="padding:8px 16px;background:#1DA1F2;color:#fff;border-radius:8px;text-decoration:none;font-size:13px;font-weight:600;">🐦 X / Twitter</a>
+      </div>
+      <button onclick="this.closest('[style]').remove()" style="margin-top:1.25rem;font-size:13px;color:#888;background:none;border:none;cursor:pointer;">Close</button>
+    </div>`;
+  document.body.appendChild(modal);
+  modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+  const btn = document.getElementById('share-btn');
+  btn.textContent = '✅ Shared!';
+  btn.disabled = false;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────
@@ -320,8 +338,10 @@ function copyResume() {
 }
 function downloadResume() {
   const blob = new Blob([window._optimizedResume || ''], { type: 'text/plain' });
-  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
-  a.download = 'optimized-resume.txt'; a.click();
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'optimized-resume.txt';
+  a.click();
 }
 function resetApp() {
   document.getElementById('results').style.display       = 'none';
