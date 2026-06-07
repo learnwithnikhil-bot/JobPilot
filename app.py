@@ -335,110 +335,383 @@ Return ONLY the JSON:"""
 
 @app.route("/download-pdf", methods=["POST"])
 def download_pdf():
-    """Generate PDF using only Python stdlib — no external dependencies."""
-    import io, struct, zlib, time
+    import io
     from flask import make_response
 
     data      = request.get_json(force=True, silent=True) or {}
     resume    = (data.get("resume") or "").strip()
     job_title = (data.get("job_title") or "Resume").strip()
+    template  = data.get("template", "classic")
 
     if not resume:
         return jsonify({"error": "No resume content"}), 400
 
     SECTION_KEYWORDS = [
-        'EXPERIENCE','EDUCATION','SKILLS','SUMMARY','PROFESSIONAL',
-        'TECHNICAL','CERTIFICATIONS','PROJECTS','AWARDS','OBJECTIVE',
-        'WORK HISTORY','EMPLOYMENT','PUBLICATIONS'
+        'EXPERIENCE','EDUCATION','SKILLS','SUMMARY','PROFESSIONAL SUMMARY',
+        'TECHNICAL SKILLS','CERTIFICATIONS','PROJECTS','AWARDS','OBJECTIVE',
+        'WORK HISTORY','EMPLOYMENT','PUBLICATIONS','VOLUNTEER','LANGUAGES',
+        'INTERESTS','ACHIEVEMENTS'
     ]
 
-    def is_section(line):
-        u = line.upper().strip()
-        return (u == u and u.replace(' ','').isalpha() and len(u) > 2 and u == line.strip().upper())                or any(u.startswith(k) for k in SECTION_KEYWORDS)
+    def is_section_header(line):
+        u = line.strip().upper()
+        if not u or len(u) < 2:
+            return False
+        return (line.strip() == line.strip().upper() and len(u) > 2 and not u.startswith('-') and not u.startswith('•')) \
+               or any(u.startswith(k) for k in SECTION_KEYWORDS)
 
-    # ── Build HTML then convert to PDF via weasyprint if available,
-    #    otherwise return a well-formatted HTML file the user can print-to-PDF
-    lines = resume.split("\n")
-    html_lines = []
-    first = True
-    contact_done = False
+    def esc(text):
+        return (text or "").replace('&','&amp;').replace('<','&lt;').replace('>','&gt;')
+
+    # Parse resume into structured parts
+    lines  = resume.split("\n")
+    name   = ""
+    contacts = []
+    sections = []  # list of {title, items: [{type: "bullet"|"text"|"job", content, company, date}]}
 
     i = 0
+    # First line = name
+    if lines:
+        name = lines[0].strip()
+        i = 1
+
+    # Contact lines (until first section header or blank+section)
     while i < len(lines):
-        line = lines[i].strip()
-        esc  = line.replace('&','&amp;').replace('<','&lt;').replace('>','&gt;')
-
-        if not line:
+        l = lines[i].strip()
+        if not l:
             i += 1
+            # peek ahead
+            if i < len(lines) and is_section_header(lines[i].strip()):
+                break
             continue
-
-        if first:
-            html_lines.append(f'<h1 class="name">{esc}</h1>')
-            first = False
-            i += 1
-            # contact lines
-            while i < len(lines):
-                cl = lines[i].strip()
-                if not cl or is_section(cl): break
-                ec = cl.replace('&','&amp;').replace('<','&lt;').replace('>','&gt;')
-                html_lines.append(f'<p class="contact">{ec}</p>')
-                i += 1
-            html_lines.append('<hr class="name-divider"/>')
-            continue
-
-        if is_section(line):
-            html_lines.append(f'<h2 class="section">{esc}</h2>')
-            i += 1
-            continue
-
-        if line[:2] in ('- ','• ','* ','· '):
-            html_lines.append(f'<p class="bullet">• {esc[2:]}</p>')
-            i += 1
-            continue
-
-        html_lines.append(f'<p class="body">{esc}</p>')
+        if is_section_header(l):
+            break
+        contacts.append(l)
         i += 1
 
-    safe_job = re.sub(r"[^a-zA-Z0-9_-]", "_", job_title)[:40]
-    body_html = "\n".join(html_lines)
+    # Parse remaining into sections
+    current_section = None
+    while i < len(lines):
+        l = lines[i].strip()
+        if not l:
+            i += 1
+            continue
+
+        if is_section_header(l):
+            if current_section:
+                sections.append(current_section)
+            current_section = {"title": l, "items": []}
+            i += 1
+            continue
+
+        if current_section is None:
+            current_section = {"title": "EXPERIENCE", "items": []}
+
+        if l.startswith(('- ','• ','* ','· ')):
+            current_section["items"].append({"type": "bullet", "content": l[2:].strip()})
+        else:
+            current_section["items"].append({"type": "text", "content": l})
+        i += 1
+
+    if current_section:
+        sections.append(current_section)
+
+    # ── Template styles ──────────────────────────────────────────────
+    templates = {
+        "classic": {
+            "accent":      "#2C3E50",
+            "accent_light":"#ECF0F1",
+            "header_bg":   "#2C3E50",
+            "header_text": "#FFFFFF",
+            "section_border": "#2C3E50",
+            "bullet_color": "#2C3E50",
+            "font":        "'Georgia', 'Times New Roman', serif",
+            "name_size":   "28px",
+        },
+        "modern": {
+            "accent":      "#534AB7",
+            "accent_light":"#EEEDFE",
+            "header_bg":   "#534AB7",
+            "header_text": "#FFFFFF",
+            "section_border": "#534AB7",
+            "bullet_color": "#534AB7",
+            "font":        "'Helvetica Neue', 'Arial', sans-serif",
+            "name_size":   "30px",
+        },
+        "minimal": {
+            "accent":      "#1a1a1a",
+            "accent_light":"#f5f5f5",
+            "header_bg":   "#FFFFFF",
+            "header_text": "#1a1a1a",
+            "section_border": "#1a1a1a",
+            "bullet_color": "#555",
+            "font":        "'Arial', sans-serif",
+            "name_size":   "26px",
+        },
+        "executive": {
+            "accent":      "#0F6E56",
+            "accent_light":"#E1F5EE",
+            "header_bg":   "#0F6E56",
+            "header_text": "#FFFFFF",
+            "section_border": "#0F6E56",
+            "bullet_color": "#0F6E56",
+            "font":        "'Garamond','Georgia',serif",
+            "name_size":   "32px",
+        },
+    }
+
+    t = templates.get(template, templates["modern"])
+
+    # Build contacts HTML
+    contact_html = " &nbsp;|&nbsp; ".join(esc(c) for c in contacts[:5]) if contacts else ""
+
+    # Build sections HTML
+    sections_html = ""
+    for sec in sections:
+        items_html = ""
+        j = 0
+        items = sec["items"]
+        while j < len(items):
+            item = items[j]
+            if item["type"] == "text":
+                content = esc(item["content"])
+                # Check if next items are bullets (job entry pattern)
+                bullets = []
+                k = j + 1
+                while k < len(items) and items[k]["type"] == "bullet":
+                    bullets.append(esc(items[k]["content"]))
+                    k += 1
+
+                if bullets:
+                    # This text line is a job title/company line
+                    items_html += f'''
+                    <div class="job-entry">
+                        <div class="job-header">{content}</div>
+                        <ul class="bullet-list">
+                            {"".join(f'<li>{b}</li>' for b in bullets)}
+                        </ul>
+                    </div>'''
+                    j = k
+                else:
+                    items_html += f'<p class="body-text">{content}</p>'
+                    j += 1
+            elif item["type"] == "bullet":
+                items_html += f'<ul class="bullet-list"><li>{esc(item["content"])}</li></ul>'
+                j += 1
+            else:
+                j += 1
+
+        sections_html += f'''
+        <div class="section">
+            <div class="section-header">
+                <h2>{esc(sec["title"])}</h2>
+                <div class="section-line"></div>
+            </div>
+            <div class="section-body">{items_html}</div>
+        </div>'''
+
+    header_style = f'background:{t["header_bg"]};color:{t["header_text"]};' if t["header_bg"] != "#FFFFFF" else f'border-bottom:3px solid {t["accent"]};padding-bottom:16px;'
 
     html = f"""<!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>{safe_job}</title>
+<title>{esc(name)} — Resume</title>
 <style>
-  @page {{ size: letter; margin: 0.75in; }}
+  @page {{ size: letter; margin: 0.6in 0.7in; }}
+  @media print {{
+    .print-bar {{ display: none !important; }}
+    body {{ margin: 0; padding: 0; background: white; }}
+    .resume {{ box-shadow: none; border-radius: 0; max-width: 100%; }}
+  }}
   * {{ box-sizing: border-box; margin: 0; padding: 0; }}
-  body {{ font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; font-size: 10pt; color: #222; line-height: 1.5; }}
-  .name {{ font-size: 22pt; font-weight: 700; color: #1a1a1a; margin-bottom: 3px; }}
-  .contact {{ font-size: 9pt; color: #555; margin-bottom: 2px; }}
-  .name-divider {{ border: none; border-top: 2px solid #534AB7; margin: 10px 0 14px; }}
-  .section {{ font-size: 10pt; font-weight: 700; color: #534AB7; text-transform: uppercase;
-              letter-spacing: 0.08em; margin-top: 14px; margin-bottom: 4px;
-              border-bottom: 1px solid #e0e0e0; padding-bottom: 3px; }}
-  .bullet {{ font-size: 10pt; color: #333; padding-left: 14px; margin-bottom: 3px; }}
-  .body {{ font-size: 10pt; color: #222; margin-bottom: 3px; }}
-  .print-note {{ display: none; }}
-  @media screen {{
-    body {{ max-width: 750px; margin: 40px auto; padding: 40px; background: #fff;
-            box-shadow: 0 2px 20px rgba(0,0,0,0.1); border-radius: 4px; }}
-    .print-note {{ display: block; background: #534AB7; color: #fff; padding: 12px 16px;
-                   border-radius: 6px; font-size: 13px; text-align: center; margin-bottom: 24px; }}
+  body {{
+    font-family: {t["font"]};
+    font-size: 10.5pt;
+    color: #222;
+    background: #f0f0f0;
+    line-height: 1.5;
+  }}
+
+  /* Print bar */
+  .print-bar {{
+    background: {t["accent"]};
+    color: white;
+    padding: 12px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }}
+  .print-bar p {{ font-size: 13px; opacity: 0.95; }}
+  .print-bar strong {{ font-size: 14px; }}
+  .print-actions {{ display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }}
+  .print-btn {{
+    padding: 7px 18px; border: 2px solid white; border-radius: 6px;
+    background: white; color: {t["accent"]}; font-size: 13px;
+    font-weight: 700; cursor: pointer; transition: all 0.15s;
+  }}
+  .print-btn:hover {{ background: {t["accent"]}; color: white; }}
+  .template-select {{
+    padding: 6px 10px; border: 2px solid white; border-radius: 6px;
+    background: transparent; color: white; font-size: 13px; cursor: pointer;
+  }}
+  .template-select option {{ color: #222; background: white; }}
+
+  /* Resume */
+  .resume {{
+    max-width: 780px;
+    margin: 24px auto;
+    background: white;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.12);
+    border-radius: 4px;
+    overflow: hidden;
+  }}
+
+  /* Header */
+  .resume-header {{
+    {header_style}
+    padding: 28px 36px 24px;
+  }}
+  .resume-header h1 {{
+    font-size: {t["name_size"]};
+    font-weight: 700;
+    letter-spacing: -0.5px;
+    margin-bottom: 10px;
+    line-height: 1.1;
+  }}
+  .contact-line {{
+    font-size: 9.5pt;
+    opacity: 0.88;
+    line-height: 1.6;
+  }}
+
+  /* Body */
+  .resume-body {{ padding: 24px 36px 32px; }}
+
+  /* Sections */
+  .section {{ margin-bottom: 22px; }}
+  .section-header {{
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 10px;
+  }}
+  .section-header h2 {{
+    font-size: 10pt;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: {t["accent"]};
+    white-space: nowrap;
+  }}
+  .section-line {{
+    flex: 1;
+    height: 1.5px;
+    background: {t["accent"]};
+    opacity: 0.25;
+  }}
+
+  /* Job entries */
+  .job-entry {{ margin-bottom: 14px; }}
+  .job-header {{
+    font-size: 10.5pt;
+    font-weight: 700;
+    color: #1a1a1a;
+    margin-bottom: 5px;
+    line-height: 1.4;
+  }}
+
+  /* Bullets */
+  .bullet-list {{
+    list-style: none;
+    padding-left: 0;
+    margin-bottom: 4px;
+  }}
+  .bullet-list li {{
+    position: relative;
+    padding-left: 16px;
+    margin-bottom: 4px;
+    font-size: 10pt;
+    color: #333;
+    line-height: 1.55;
+  }}
+  .bullet-list li::before {{
+    content: "▸";
+    position: absolute;
+    left: 0;
+    color: {t["bullet_color"]};
+    font-size: 9pt;
+    top: 1px;
+  }}
+
+  /* Body text */
+  .body-text {{
+    font-size: 10pt;
+    color: #333;
+    margin-bottom: 6px;
+    line-height: 1.6;
   }}
 </style>
 </head>
 <body>
-<div class="print-note">
-  📄 To save as PDF: Press <strong>Ctrl+P</strong> (or Cmd+P on Mac) → Select "Save as PDF" → Click Save
+
+<div class="print-bar">
+  <div>
+    <strong>📄 {esc(name)} — Resume</strong>
+    <p>To save as PDF: <strong>Cmd+P → Save as PDF → Save</strong></p>
+  </div>
+  <div class="print-actions">
+    <select class="template-select" onchange="changeTemplate(this.value)">
+      <option value="modern" {'selected' if template=='modern' else ''}>Modern (Purple)</option>
+      <option value="classic" {'selected' if template=='classic' else ''}>Classic (Navy)</option>
+      <option value="executive" {'selected' if template=='executive' else ''}>Executive (Green)</option>
+      <option value="minimal" {'selected' if template=='minimal' else ''}>Minimal (Black)</option>
+    </select>
+    <button class="print-btn" onclick="window.print()">🖨 Print / Save PDF</button>
+  </div>
 </div>
-{body_html}
+
+<div class="resume">
+  <div class="resume-header">
+    <h1>{esc(name)}</h1>
+    {f'<div class="contact-line">{contact_html}</div>' if contact_html else ""}
+  </div>
+  <div class="resume-body">
+    {sections_html}
+  </div>
+</div>
+
+<script>
+function changeTemplate(t) {{
+  const params = new URLSearchParams(window.location.search);
+  params.set('template', t);
+  // Re-request with new template
+  const data = JSON.parse(sessionStorage.getItem('resumeData') || '{{}}');
+  data.template = t;
+  fetch('/download-pdf', {{
+    method: 'POST',
+    headers: {{'Content-Type': 'application/json'}},
+    body: JSON.stringify(data)
+  }}).then(r => r.blob()).then(blob => {{
+    const url = URL.createObjectURL(blob);
+    document.open();
+    document.write('');
+    window.location.href = url;
+  }});
+}}
+</script>
+
 </body>
 </html>"""
 
+    safe_name = re.sub(r"[^a-zA-Z0-9_-]", "_", name or job_title)[:40]
+    filename  = f"{safe_name}_resume.html"
+
     response = make_response(html)
     response.headers['Content-Type']        = 'text/html; charset=utf-8'
-    response.headers['Content-Disposition'] = f'attachment; filename="{safe_job}_resume.html"'
+    response.headers['Content-Disposition'] = f'attachment; filename="{filename}"' 
     return response
 
 # Init DB on startup
