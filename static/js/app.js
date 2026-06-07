@@ -221,6 +221,7 @@ function renderResults(r, role, originalResume) {
       <div class="r-actions">
         <button class="btn-ghost" onclick="copyResume()">📋 Copy <span class="copy-feedback" id="copy-fb">Copied!</span></button>
         <button class="btn-ghost" onclick="downloadResume()">⬇ Download .txt</button>
+        <button class="btn-pdf" id="pdf-btn" onclick="downloadPDF()">📄 Download PDF</button>
         <button class="btn-share" id="share-btn" onclick="shareResult()">🔗 Share results</button>
         <button class="btn-solid" onclick="resetApp()">↩ New resume</button>
       </div>
